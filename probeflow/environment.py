@@ -6,11 +6,13 @@ into request URLs, headers, and bodies.
 
 from __future__ import annotations
 
+import base64
 import os
 import re
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from probeflow.models import Environment, Request
+from probeflow.models import AuthScheme, Environment, Header, Request, RequestBody
 
 # Matches {{variable}} patterns in strings
 _VARIABLE_PATTERN = re.compile(r"\{\{\s*([^{}\s]+)\s*\}\}")
@@ -27,6 +29,7 @@ _ENV_FILE_PATTERN = ".env.{}"
 
 class EnvironmentNotFoundError(Exception):
     """Raised when a requested environment file cannot be found."""
+
     pass
 
 
@@ -57,17 +60,24 @@ def _resolve_response_reference(reference: str, responses: dict) -> str:
     elif field.startswith("headers."):
         header_name = field.removeprefix("headers.")
         value = next(
-            (header_value for name, header_value in response.headers.items()
-             if name.lower() == header_name.lower()),
+            (
+                header_value
+                for name, header_value in response.headers.items()
+                if name.lower() == header_name.lower()
+            ),
             None,
         )
     elif field.startswith("body."):
         from probeflow.evaluator import _extract_jsonpath
 
+        path = field.removeprefix("body.")
+        # Ensure the path starts with $ for _extract_jsonpath
+        if not path.startswith("$"):
+            path = "$." + path.lstrip(".")
         if response.parsed_body is None:
             value = None
         else:
-            value = _extract_jsonpath(response.parsed_body, field.removeprefix("body."))
+            value = _extract_jsonpath(response.parsed_body, path)
     else:
         raise VariableResolutionError(
             f"Unsupported response reference field in '{{{{{reference}}}}}'"
@@ -118,13 +128,11 @@ def find_env_file(
     Returns:
         Path to the .env file, or None if not found.
     """
-    # If a specific environment is requested, try that file first
     if env_name:
         specific = directory / _ENV_FILE_PATTERN.format(env_name)
         if specific.exists():
             return specific
 
-    # Try default env files
     for default in _DEFAULT_ENV_FILES:
         candidate = directory / default
         if candidate.exists():
@@ -167,25 +175,66 @@ def substitute_variables(
     Args:
         text: The string containing {{variable}} placeholders.
         variables: Dictionary of variable names to values.
+        responses: Optional dict of prior named responses for chaining.
 
     Returns:
         The string with variables substituted.
     """
+
     def _replacer(match: re.Match[str]) -> str:
         var_name = match.group(1)
         if ".response." in var_name:
             return _resolve_response_reference(var_name, responses or {})
-        # Check provided variables first
         if var_name in variables:
             return variables[var_name]
-        # Fall back to system environment
         sys_val = os.environ.get(var_name)
         if sys_val is not None:
             return sys_val
-        # Leave unresolved
         return match.group(0)
 
     return _VARIABLE_PATTERN.sub(_replacer, text)
+
+
+def _apply_auth(
+    request: Request,
+    variables: dict[str, str],
+    resolved_headers: list[Header],
+) -> list[Header]:
+    """Apply auth config to the resolved headers list, returning a new list."""
+    if request.auth is None:
+        return resolved_headers
+
+    # Check for explicit Authorization header conflict
+    has_auth_header = any(h.name.lower() == "authorization" for h in resolved_headers)
+    if has_auth_header:
+        raise VariableResolutionError(
+            "Auth config would override an explicit Authorization header. "
+            "Remove the Authorization header or the @auth directive."
+        )
+
+    auth = request.auth
+    new_headers = list(resolved_headers)
+
+    if auth.scheme == AuthScheme.BEARER:
+        token = substitute_variables(auth.token or "", variables)
+        new_headers.append(Header(name="Authorization", value=f"Bearer {token}"))
+
+    elif auth.scheme == AuthScheme.BASIC:
+        username = substitute_variables(auth.username or "", variables)
+        password = substitute_variables(auth.password or "", variables)
+        encoded = base64.b64encode(f"{username}:{password}".encode()).decode()
+        new_headers.append(Header(name="Authorization", value=f"Basic {encoded}"))
+
+    return new_headers
+
+
+def _apply_api_key_query(url: str, key_name: str, key_value: str) -> str:
+    """Append an API key query parameter to a URL."""
+    parsed = urlparse(url)
+    existing = parse_qs(parsed.query, keep_blank_values=True)
+    existing[key_name] = [key_value]
+    new_query = urlencode({k: v[0] for k, v in existing.items()})
+    return urlunparse(parsed._replace(query=new_query))
 
 
 def resolve_request(
@@ -196,16 +245,20 @@ def resolve_request(
     """Resolve all variable placeholders in a request.
 
     Substitutes variables in the URL, header names/values, and body content.
+    Also applies auth config and validates it does not conflict with explicit headers.
 
     Args:
         request: The request with unresolved variable placeholders.
         variables: Dictionary of variable names to values.
+        responses: Optional dict of prior named responses for chaining.
 
     Returns:
         A new Request with all placeholders resolved.
-    """
-    from probeflow.models import Header, RequestBody
 
+    Raises:
+        VariableResolutionError: If a response reference cannot be resolved,
+            or if auth config conflicts with an explicit Authorization header.
+    """
     resolved_url = substitute_variables(request.url, variables, responses)
 
     resolved_headers = [
@@ -223,6 +276,21 @@ def resolve_request(
             content_type=request.body.content_type,
         )
 
+    # Apply auth (may raise VariableResolutionError on conflict)
+    if request.auth is not None:
+        from probeflow.models import ApiKeyLocation
+
+        auth = request.auth
+        if auth.scheme == AuthScheme.BEARER or auth.scheme == AuthScheme.BASIC:
+            resolved_headers = _apply_auth(request, variables, resolved_headers)
+        elif auth.scheme == AuthScheme.API_KEY:
+            key_name = auth.api_key_name or ""
+            key_value = substitute_variables(auth.api_key_value or "", variables)
+            if auth.api_key_location == ApiKeyLocation.HEADER:
+                resolved_headers.append(Header(name=key_name, value=key_value))
+            elif auth.api_key_location == ApiKeyLocation.QUERY:
+                resolved_url = _apply_api_key_query(resolved_url, key_name, key_value)
+
     return Request(
         method=request.method,
         url=resolved_url,
@@ -234,5 +302,7 @@ def resolve_request(
         assertions=request.assertions,
         before_hook=request.before_hook,
         after_hook=request.after_hook,
+        auth=request.auth,
+        multipart=request.multipart,
         span=request.span,
     )

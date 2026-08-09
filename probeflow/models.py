@@ -33,6 +33,7 @@ SUPPORTED_METHODS = [m.value for m in HTTPMethod]
 # Source location tracking
 # ---------------------------------------------------------------------------
 
+
 class SourceSpan(BaseModel):
     """Tracks the source location of a parsed construct.
 
@@ -47,15 +48,13 @@ class SourceSpan(BaseModel):
     def __str__(self) -> str:
         if self.start_line == self.end_line:
             return f"line {self.start_line}, col {self.start_col}-{self.end_col}"
-        return (
-            f"line {self.start_line}:{self.start_col} - "
-            f"line {self.end_line}:{self.end_col}"
-        )
+        return f"line {self.start_line}:{self.start_col} - line {self.end_line}:{self.end_col}"
 
 
 # ---------------------------------------------------------------------------
 # Headers and body
 # ---------------------------------------------------------------------------
+
 
 class Header(BaseModel):
     """A single HTTP header key-value pair."""
@@ -89,6 +88,7 @@ class RequestBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Assertions (spec §7)
 # ---------------------------------------------------------------------------
+
 
 class AssertionOperator(str, Enum):
     """Operators supported in assertion expressions."""
@@ -151,6 +151,7 @@ class AssertBlock(BaseModel):
 # Script hooks (spec §6.3)
 # ---------------------------------------------------------------------------
 
+
 class HookRef(BaseModel):
     """A reference to a Python hook function (spec §6.3).
 
@@ -166,6 +167,37 @@ class HookRef(BaseModel):
 # ---------------------------------------------------------------------------
 # Request and file
 # ---------------------------------------------------------------------------
+
+
+class AuthScheme(str, Enum):
+    BEARER = "bearer"
+    BASIC = "basic"
+    API_KEY = "api-key"
+
+
+class ApiKeyLocation(str, Enum):
+    HEADER = "header"
+    QUERY = "query"
+
+
+class AuthConfig(BaseModel):
+    scheme: AuthScheme
+    token: str | None = None
+    username: str | None = None
+    password: str | None = None
+    api_key_location: ApiKeyLocation | None = None
+    api_key_name: str | None = None
+    api_key_value: str | None = None
+    span: SourceSpan | None = None
+
+
+class MultipartPart(BaseModel):
+    name: str
+    value: str | None = None
+    file_path: str | None = None
+    content_type: str | None = None
+    span: SourceSpan | None = None
+
 
 class Request(BaseModel):
     """A parsed HTTP request from a .http file.
@@ -186,6 +218,8 @@ class Request(BaseModel):
     assertions: AssertBlock | None = None
     before_hook: HookRef | None = None
     after_hook: HookRef | None = None
+    auth: AuthConfig | None = None
+    multipart: list[MultipartPart] = Field(default_factory=list)
 
     span: SourceSpan | None = None
 
@@ -213,6 +247,7 @@ class RequestFile(BaseModel):
 # Environment
 # ---------------------------------------------------------------------------
 
+
 class Environment(BaseModel):
     """An environment configuration loaded from a .env file.
 
@@ -226,6 +261,7 @@ class Environment(BaseModel):
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
+
 
 class ParseError(Exception):
     """Raised when a .http file cannot be parsed.

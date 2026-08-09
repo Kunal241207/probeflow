@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "probeflow"
-version = "0.1.0"
+version = "0.2.0"
 description = "Pytest for HTTP APIs using Git-diffable .http request files"
 readme = "README.md"
 license = {text = "MIT"}
@@ -13,11 +13,11 @@ authors = [
     {name = "probeflow"},
 ]
 dependencies = [
-    "httpx>=0.27.0",
-    "typer==0.27.0",
-    "rich==15.0.0",
-    "pydantic>=2.6.0",
-    "python-dotenv>=1.0.0",
+    "httpx>=0.27.0,<1.0",
+    "typer>=0.9.0,<1.0",
+    "rich>=13.0.0,<16.0",
+    "pydantic>=2.6.0,<3.0",
+    "python-dotenv>=1.0.0,<2.0",
 ]
 
 [project.scripts]
@@ -31,14 +31,33 @@ dev = [
     "respx>=0.21.0",
 ]
 
+# ── Ruff ──────────────────────────────────────────────────────────────────
+
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "A", "C4", "RUF"]
-ignore = ["B008", "B904", "UP042"]
+ignore = ["B008", "B904", "UP042", "N818"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+# ── Pytest ────────────────────────────────────────────────────────────────
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --cov=probeflow --cov-report=term-missing --cov-fail-under=85"
+
+# ── Coverage ─────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+source = ["probeflow"]
+omit = ["probeflow/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

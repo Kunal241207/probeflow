@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -77,6 +78,7 @@ def _try_parse_json(body: str, content_type: str | None) -> Any:
     """
     if content_type and "json" in content_type.lower():
         import json
+
         try:
             return json.loads(body)
         except (json.JSONDecodeError, ValueError):
@@ -84,10 +86,28 @@ def _try_parse_json(body: str, content_type: str | None) -> Any:
     return None
 
 
+def _build_multipart_files(
+    request: Request,
+    base_dir: Path | None,
+) -> list[tuple[str, Any]]:
+    """Build the files list for httpx multipart encoding."""
+    files: list[tuple[str, Any]] = []
+    for part in request.multipart:
+        if part.file_path is not None:
+            resolved = (Path(base_dir) / part.file_path) if base_dir else Path(part.file_path)
+            data = resolved.read_bytes()
+            content_type = part.content_type or "application/octet-stream"
+            files.append((part.name, (part.file_path, data, content_type)))
+        else:
+            files.append((part.name, (None, part.value or "", part.content_type or "text/plain")))
+    return files
+
+
 def execute_request(
     request: Request,
     timeout: float = 30.0,
     follow_redirects: bool = True,
+    base_dir: Path | None = None,
 ) -> Response:
     """Execute an HTTP request and return a structured response.
 
@@ -95,31 +115,36 @@ def execute_request(
         request: The resolved request to send.
         timeout: Request timeout in seconds.
         follow_redirects: Whether to follow HTTP redirects.
+        base_dir: Base directory for resolving relative file paths in multipart parts.
 
     Returns:
         A Response object with full response metadata.
 
     Raises:
-        httpx.HTTPError: On network errors or HTTP protocol errors.
+        ConnectionError: On network or timeout errors.
     """
-    # Build headers dict
     headers = {h.name: h.value for h in request.headers}
-
-    # Build body
-    body: str | bytes | None = None
-    if request.body:
-        body = request.body.content
 
     start = time.perf_counter()
 
     try:
         with httpx.Client(timeout=timeout, follow_redirects=follow_redirects) as client:
-            response = client.request(
-                method=request.method.value,
-                url=request.url,
-                headers=headers,
-                content=body,
-            )
+            if request.multipart:
+                files = _build_multipart_files(request, base_dir)
+                response = client.request(
+                    method=request.method.value,
+                    url=request.url,
+                    headers=headers,
+                    files=files,
+                )
+            else:
+                body: str | bytes | None = request.body.content if request.body else None
+                response = client.request(
+                    method=request.method.value,
+                    url=request.url,
+                    headers=headers,
+                    content=body,
+                )
     except httpx.ConnectTimeout:
         raise ConnectionError(f"Connection timed out after {timeout}s: {request.url}")
     except httpx.ConnectError as e:

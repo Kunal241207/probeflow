@@ -62,13 +62,10 @@ def _request_file_to_dict(rf) -> dict:
 
     Strips SourceSpan data to keep golden files stable and readable.
     """
+
     def _strip_spans(obj):
         if isinstance(obj, dict):
-            return {
-                k: _strip_spans(v)
-                for k, v in obj.items()
-                if k != "span"
-            }
+            return {k: _strip_spans(v) for k, v in obj.items() if k != "span"}
         if isinstance(obj, list):
             return [_strip_spans(item) for item in obj]
         return obj
@@ -78,12 +75,14 @@ def _request_file_to_dict(rf) -> dict:
 
 # ── pytest configuration ──────────────────────────────────────────────────
 
+
 @pytest.fixture
 def update_golden(request):
     return request.config.getoption("--update-golden")
 
 
 # ── Golden-file snapshot tests ────────────────────────────────────────────
+
 
 class TestGoldenFiles:
     """Parse each valid fixture and compare against the golden snapshot."""
@@ -133,17 +132,11 @@ class TestMalformedFiles:
 
         error = exc_info.value
         # Must have line number
-        assert error.line is not None, (
-            f"ParseError for {fixture_name} is missing line number"
-        )
+        assert error.line is not None, f"ParseError for {fixture_name} is missing line number"
         # Must have column number
-        assert error.column is not None, (
-            f"ParseError for {fixture_name} is missing column number"
-        )
+        assert error.column is not None, f"ParseError for {fixture_name} is missing column number"
         # Must have a human-readable message (not a bare traceback)
-        assert error.raw_message, (
-            f"ParseError for {fixture_name} has no message"
-        )
+        assert error.raw_message, f"ParseError for {fixture_name} has no message"
 
     def test_malformed_method_error_content(self):
         """Verify the specific error for an invalid HTTP method."""
@@ -169,13 +162,13 @@ class TestLenientParsing:
 
 # ── Round-trip tests ──────────────────────────────────────────────────────
 
+
 class TestRoundTrip:
     """Parse → format → parse should produce semantically identical results."""
 
-    @pytest.mark.parametrize("fixture_name", [
-        f for f in VALID_FIXTURES
-        if f not in ("empty.http", "comments_only.http")
-    ])
+    @pytest.mark.parametrize(
+        "fixture_name", [f for f in VALID_FIXTURES if f not in ("empty.http", "comments_only.http")]
+    )
     def test_roundtrip_semantic_equality(self, fixture_name):
         """Format output re-parses to the same semantic content."""
         fixture_path = FIXTURES_DIR / fixture_name
@@ -192,12 +185,10 @@ class TestRoundTrip:
 
         # Compare semantics (not spans, not exact text)
         assert len(reparsed.requests) == len(original.requests), (
-            f"Round-trip changed request count: "
-            f"{len(original.requests)} → {len(reparsed.requests)}"
+            f"Round-trip changed request count: {len(original.requests)} → {len(reparsed.requests)}"
         )
         assert reparsed.environment_name == original.environment_name, (
-            f"Environment changed from {original.environment_name} "
-            f"to {reparsed.environment_name}"
+            f"Environment changed from {original.environment_name} to {reparsed.environment_name}"
         )
 
         for i, (orig_req, re_req) in enumerate(
@@ -237,9 +228,7 @@ class TestRoundTrip:
 
             # Compare assertions
             if orig_req.assertions:
-                assert re_req.assertions is not None, (
-                    f"Request {i}: assertions lost in round-trip"
-                )
+                assert re_req.assertions is not None, f"Request {i}: assertions lost in round-trip"
                 assert len(orig_req.assertions.assertions) == len(re_req.assertions.assertions), (
                     f"Request {i}: assertion count changed"
                 )
@@ -253,12 +242,11 @@ class TestRoundTrip:
                 assert orig_req.before_hook.function_name == re_req.before_hook.function_name
 
             if orig_req.after_hook:
-                assert re_req.after_hook is not None, (
-                    f"Request {i}: after_hook lost in round-trip"
-                )
+                assert re_req.after_hook is not None, f"Request {i}: after_hook lost in round-trip"
 
 
 # ── Error quality tests ──────────────────────────────────────────────────
+
 
 class TestErrorQuality:
     """Verify that parse errors are human-readable and contain location info."""

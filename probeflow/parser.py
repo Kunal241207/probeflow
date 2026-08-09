@@ -16,8 +16,8 @@ from typing import NamedTuple
 
 from probeflow.models import (
     SUPPORTED_METHODS,
-    Assertion,
     AssertBlock,
+    Assertion,
     AssertionOperator,
     AssertionTarget,
     Header,
@@ -30,22 +30,21 @@ from probeflow.models import (
     SourceSpan,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Lexer — line-by-line token classification
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TokenType(Enum):
     """Classification of a single line in a .http file."""
 
-    SEPARATOR = auto()       # ### (without @ directive)
-    DIRECTIVE = auto()       # ### @name = ..., ### @env = ..., ### @assert, etc.
-    COMMENT = auto()         # // ... or # ...
-    REQUEST_LINE = auto()    # METHOD URL [HTTP/x.y]
-    HEADER = auto()          # Key: Value
-    BLANK = auto()           # Empty / whitespace-only line
-    BODY_LINE = auto()       # Anything else (body content)
-    ASSERTION_LINE = auto()  # # <assertion_expr> (inside an assert block)
+    SEPARATOR = auto()  # ### (without @ directive)
+    DIRECTIVE = auto()  # ### @name = ..., ### @env = ..., ### @assert, etc.
+    COMMENT = auto()  # // ... or # ...
+    REQUEST_LINE = auto()  # METHOD URL [HTTP/x.y]
+    HEADER = auto()  # Key: Value
+    BLANK = auto()  # Empty / whitespace-only line
+    BODY_LINE = auto()  # Anything else (body content)
 
 
 class Token(NamedTuple):
@@ -53,8 +52,8 @@ class Token(NamedTuple):
 
     type: TokenType
     text: str
-    line: int       # 1-indexed line number
-    col: int        # 1-indexed column of first non-whitespace (or 1 if blank)
+    line: int  # 1-indexed line number
+    col: int  # 1-indexed column of first non-whitespace (or 1 if blank)
 
 
 # Regex patterns for line classification
@@ -235,9 +234,7 @@ def _parse_value_literal(text: str) -> tuple[str, object]:
     return ("unknown", text)
 
 
-def _parse_assertion_expr(
-    text: str, lineno: int, col: int, filename: str
-) -> Assertion:
+def _parse_assertion_expr(text: str, lineno: int, col: int, filename: str) -> Assertion:
     """Parse a single assertion expression line.
 
     Returns an Assertion model or raises ParseError.
@@ -347,6 +344,7 @@ def _parse_assertion_expr(
 # Parser — grammar-driven AST builder
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class _Parser:
     """Stateful parser that consumes a token list and produces a RequestFile.
 
@@ -374,7 +372,6 @@ class _Parser:
 
     def _at_end(self) -> bool:
         return self._pos >= len(self._tokens)
-
 
     # -- Grammar productions ------------------------------------------------
 
@@ -517,9 +514,6 @@ class _Parser:
                     break
                 if tok.type in (TokenType.SEPARATOR, TokenType.DIRECTIVE):
                     break
-                # Check if this is an assertion-start comment (### @assert)
-                if tok.type == TokenType.DIRECTIVE:
-                    break
 
                 self._advance()
                 body_lines.append(tok.text)
@@ -540,7 +534,9 @@ class _Parser:
                         start_col=1,
                         end_line=body_end or req_tok.line,
                         end_col=1,
-                    ) if body_start else None,
+                    )
+                    if body_start
+                    else None,
                 )
 
         # --- Post-request metadata (assertions, @after) ---
@@ -575,7 +571,9 @@ class _Parser:
         # Extract inline variables from pre-request directives
         env_variables: dict[str, str] = {}
 
-        block_end_line = body_end or (headers[-1].span.end_line if headers and headers[-1].span else req_tok.line)
+        block_end_line = body_end or (
+            headers[-1].span.end_line if headers and headers[-1].span else req_tok.line
+        )
 
         request = Request(
             method=method,
@@ -643,7 +641,9 @@ class _Parser:
             span=SourceSpan(
                 start_line=block_start,
                 start_col=1,
-                end_line=assertions[-1].span.end_line if assertions and assertions[-1].span else block_start,
+                end_line=assertions[-1].span.end_line
+                if assertions and assertions[-1].span
+                else block_start,
                 end_col=1,
             ),
         )
@@ -652,8 +652,7 @@ class _Parser:
         """Parse a hook reference like 'hooks.py:sign_request'."""
         if ":" not in value:
             raise ParseError(
-                f"Invalid hook reference: '{value}'. "
-                "Expected format: file.py:function_name",
+                f"Invalid hook reference: '{value}'. Expected format: file.py:function_name",
                 line=tok.line,
                 column=tok.col,
                 filename=self._filename,
@@ -770,6 +769,7 @@ class _Parser:
 # Public API
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 def parse_file(filepath: str | Path) -> RequestFile:
     """Parse a .http file into a RequestFile object.
 
@@ -810,6 +810,7 @@ def parse_string(content: str, filename: str = "<input>") -> RequestFile:
 # ═══════════════════════════════════════════════════════════════════════════
 # Formatter — round-trip .http output
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 def format_request(request: Request) -> str:
     """Format a Request object back into .http file syntax.
