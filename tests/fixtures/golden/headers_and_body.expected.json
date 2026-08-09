@@ -31,7 +31,9 @@
       "environment_variables": {},
       "assertions": null,
       "before_hook": null,
-      "after_hook": null
+      "after_hook": null,
+      "auth": null,
+      "multipart": []
     },
     {
       "method": "PUT",
@@ -59,7 +61,9 @@
       "environment_variables": {},
       "assertions": null,
       "before_hook": null,
-      "after_hook": null
+      "after_hook": null,
+      "auth": null,
+      "multipart": []
     }
   ],
   "environment_name": null

@@ -36,7 +36,9 @@
         ]
       },
       "before_hook": null,
-      "after_hook": null
+      "after_hook": null,
+      "auth": null,
+      "multipart": []
     },
     {
       "method": "GET",
@@ -70,7 +72,9 @@
         ]
       },
       "before_hook": null,
-      "after_hook": null
+      "after_hook": null,
+      "auth": null,
+      "multipart": []
     },
     {
       "method": "PUT",
@@ -111,7 +115,9 @@
         ]
       },
       "before_hook": null,
-      "after_hook": null
+      "after_hook": null,
+      "auth": null,
+      "multipart": []
     }
   ],
   "environment_name": null

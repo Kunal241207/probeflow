@@ -126,7 +126,13 @@ def write_junit_report(path: Path, results: list[RequestTestResult]) -> None:
         )
         if not result.passed:
             failure = ET.SubElement(case, "failure", message=result.error or "Assertion failed")
-            details = [assertion.message for assertion in result.assertions if assertion.message]
-            failure.text = "\n".join(details) if details else result.error
+            details = [a.message for a in result.assertions if not a.passed and a.message]
+            failure.text = "\n".join(details) if details else (result.error or "")
 
-    ET.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
+    tree = ET.ElementTree(suite)
+    ET.indent(tree, space="  ")
+    with path.open("wb") as fh:
+        tree.write(fh, encoding="utf-8", xml_declaration=True)
+    # Append a trailing newline so the file is text-editor friendly
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write("\n")

@@ -6,6 +6,7 @@ import os
 
 import pytest
 
+from probeflow.client import Response
 from probeflow.environment import (
     EnvironmentNotFoundError,
     find_env_file,
@@ -14,7 +15,6 @@ from probeflow.environment import (
     resolve_request,
     substitute_variables,
 )
-from probeflow.client import Response
 from probeflow.models import (
     AssertBlock,
     Assertion,

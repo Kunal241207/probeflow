@@ -55,28 +55,33 @@ def run(
     ),
     request_index: int = typer.Option(
         None,
-        "--index", "-i",
+        "--index",
+        "-i",
         help="Index of the request to run (0-based). Runs all if omitted.",
     ),
     env_name: str | None = typer.Option(
         None,
-        "--env", "-e",
+        "--env",
+        "-e",
         help="Environment name (e.g., dev, staging, prod). Uses .env.{name}.",
     ),
     show_headers: bool = typer.Option(
         False,
-        "--headers", "-H",
+        "--headers",
+        "-H",
         help="Show response headers.",
     ),
     timeout: float = typer.Option(
         30.0,
-        "--timeout", "-t",
+        "--timeout",
+        "-t",
         help="Request timeout in seconds.",
         min=1.0,
     ),
     quiet: bool = typer.Option(
         False,
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         help="Suppress output, only show errors.",
     ),
 ) -> None:
@@ -109,14 +114,21 @@ def run(
             err_console.print(f"[dim]Environment: {environment.name}[/]")
 
     # Determine which requests to run
-    if request_index is not None and 0 <= request_index < len(request_file.requests):
+    if request_index is not None:
+        if not (0 <= request_index < len(request_file.requests)):
+            print_error(
+                f"Index {request_index} is out of range. "
+                f"File has {len(request_file.requests)} request(s) (0-based)."
+            )
+            raise typer.Exit(code=1)
         requests_to_run = [request_file.requests[request_index]]
     else:
         requests_to_run = request_file.requests
 
+    responses: dict = {}
     for request in requests_to_run:
         try:
-            resolved = resolve_request(request, variables)
+            resolved = resolve_request(request, variables, responses)
         except Exception as e:
             print_error(f"Failed to resolve variables for '{request.name or request.url}': {e}")
             continue
@@ -134,6 +146,9 @@ def run(
         except Exception as e:
             print_error(f"Request failed: {e}")
             raise typer.Exit(code=1)
+
+        if request.name:
+            responses[request.name] = response
 
 
 @app.command()
@@ -268,9 +283,9 @@ def test_cmd(
             console = Console()
             console.print(f"[green]PASS[/] {result.name} ({result.status_code})")
         else:
-            message = result.error or next(
-                (assertion.message for assertion in result.assertions if assertion.message),
-                "Assertion failed",
+            failed_messages = [a.message for a in result.assertions if not a.passed and a.message]
+            message = result.error or (
+                failed_messages[0] if failed_messages else "Assertion failed"
             )
             err_console.print(f"[red]FAIL[/] {result.name}: {message}")
 
@@ -294,12 +309,14 @@ def format_cmd(
     ),
     check: bool = typer.Option(
         False,
-        "--check", "-c",
+        "--check",
+        "-c",
         help="Check if file is formatted. Exit 0 if yes, 1 if not. Don't modify.",
     ),
     output: Path | None = typer.Option(
         None,
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Write formatted output to this file. Modifies in-place if omitted.",
     ),
 ) -> None:

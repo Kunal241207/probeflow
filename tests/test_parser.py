@@ -6,7 +6,7 @@ import textwrap
 
 import pytest
 
-from probeflow.models import Header, HTTPMethod, ParseError
+from probeflow.models import HTTPMethod, ParseError
 from probeflow.parser import format_request, parse_string
 
 
@@ -353,6 +353,7 @@ class TestParserEdgeCases:
     def test_file_not_found(self):
         with pytest.raises(FileNotFoundError):
             from probeflow.parser import parse_file
+
             parse_file("does_not_exist.http")
 
     def test_literal_parsing_edge_cases(self):

@@ -1,7 +1,6 @@
 """Terminal output formatting using Rich.
 
-Provides colorful, structured display of requests, responses, validation
-results, and other CLI output.
+Provides colorful, structured display of requests, responses, and CLI output.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 
 from probeflow.client import Response
-from probeflow.models import ParseError, Request
+from probeflow.models import Request
 
 
 def _make_console() -> Console:
@@ -117,44 +116,3 @@ def print_error(message: str, console: Console | None = None) -> None:
     """Print an error message to stderr in red."""
     console = console or _make_error_console()
     console.print(f"[bold red]Error:[/] {message}")
-
-
-def print_validation_error(
-    error: ParseError,
-    filename: str,
-    console: Console | None = None,
-) -> None:
-    """Print a validation error with file context."""
-    console = console or _make_error_console()
-    console.print(f"[bold red]Validation Error in {filename}:[/] {error}")
-
-
-def print_parse_errors(
-    errors: list[tuple[int, str]],
-    filename: str,
-    console: Console | None = None,
-) -> None:
-    """Print multiple parse errors."""
-    console = console or _make_error_console()
-    console.print(f"[bold red]Parse Errors in {filename}:[/]")
-    for line, msg in errors:
-        console.print(f"  Line {line}: {msg}")
-
-
-def print_no_env_warning(filename: str, console: Console | None = None) -> None:
-    """Print a warning about missing environment variables."""
-    console = console or _make_console()
-    console.print(
-        f"[yellow]Warning:[/] No .env file found for '{filename}'. "
-        "Variables may be unresolved.",
-    )
-
-
-def print_unresolved_variables(
-    variables: list[str],
-    console: Console | None = None,
-) -> None:
-    """Print a list of unresolved variable names."""
-    console = console or _make_error_console()
-    for var in variables:
-        console.print(f"  [yellow]{{{{{var}}}}}[/]")

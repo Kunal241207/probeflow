@@ -1,5 +1,6 @@
 """Pytest configuration and shared fixtures for probeflow."""
 
+
 def pytest_addoption(parser):
     parser.addoption(
         "--update-golden",
