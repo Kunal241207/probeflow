@@ -1,0 +1,8 @@
+### @name = floatAndList
+GET https://httpbin.org/get
+
+### @assert
+# status in [200, 201, 202]
+# body.$.id == 123.45
+# body.$.empty_list in []
+# body.$.deleted == null

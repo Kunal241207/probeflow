@@ -1,0 +1,26 @@
+// Simple GET request
+### @name = ping
+GET https://httpbin.org/get
+Accept: application/json
+
+###
+
+// POST with JSON body
+### @name = postData
+POST https://httpbin.org/post
+Content-Type: application/json
+
+{
+    "message": "Hello from probeflow!",
+    "timestamp": "2024-01-01T00:00:00Z"
+}
+
+###
+
+// HEAD request (no body)
+HEAD https://httpbin.org/headers
+
+###
+
+// DELETE request
+DELETE https://httpbin.org/delete?id=42

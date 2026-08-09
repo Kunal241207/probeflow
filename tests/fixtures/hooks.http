@@ -1,0 +1,12 @@
+### @name = createResource
+### @before = hooks.py:sign_request
+POST https://api.example.com/resources
+Content-Type: application/json
+
+{"name": "test-resource"}
+
+### @assert
+# status == 201
+# body.$.id is number
+
+### @after = hooks.py:verify_signature

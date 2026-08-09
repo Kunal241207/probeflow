@@ -1,0 +1,52 @@
+{
+  "filename": "multi_request.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.example.com/users",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "GET",
+      "url": "https://api.example.com/users/42",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "DELETE",
+      "url": "https://api.example.com/users/42",
+      "http_version": null,
+      "headers": [],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

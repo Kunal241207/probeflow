@@ -1,0 +1,52 @@
+### @env = dev
+
+// Get all users
+### @name = getUsers
+GET {{base_url}}/users
+Authorization: Bearer {{auth_token}}
+Accept: application/json
+
+###
+
+// Get a single user by ID
+### @name = getUser
+GET {{base_url}}/users/1
+Authorization: Bearer {{auth_token}}
+Accept: application/json
+
+###
+
+// Create a new user
+### @name = createUser
+POST {{base_url}}/users
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "role": "developer"
+}
+
+###
+
+// Update a user
+### @name = updateUser
+PUT {{base_url}}/users/1
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{auth_token}}
+
+{
+    "name": "Alice Johnson-Smith",
+    "email": "alice@example.com",
+    "role": "senior_developer"
+}
+
+###
+
+// Delete a user
+### @name = deleteUser
+DELETE {{base_url}}/users/1
+Authorization: Bearer {{auth_token}}

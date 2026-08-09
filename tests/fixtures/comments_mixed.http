@@ -1,0 +1,20 @@
+// This file tests comment handling
+# Hash-style comment at top
+
+// Comment before request
+### @name = testRequest
+# Another hash comment
+GET https://httpbin.org/get
+// Comment between headers
+Accept: application/json
+# Comment before body separator
+
+###
+
+# Standalone comment between requests
+// Another standalone comment
+
+POST https://httpbin.org/post
+Content-Type: text/plain
+
+Hello, world!

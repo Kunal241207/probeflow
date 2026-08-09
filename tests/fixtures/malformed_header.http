@@ -1,0 +1,3 @@
+GET https://httpbin.org/get
+BadHeader no colon
+Accept: application/json

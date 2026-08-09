@@ -1,0 +1,32 @@
+### Simple GET request
+GET https://httpbin.org/get
+Accept: application/json
+
+###
+
+### POST with JSON body
+POST https://httpbin.org/post
+Content-Type: application/json
+
+{
+    "message": "Hello from VS Code REST Client",
+    "timestamp": "2024-01-01T00:00:00Z"
+}
+
+###
+
+### Request with query parameters
+GET https://httpbin.org/get?page=1&limit=10
+Accept: application/json
+
+###
+
+### PUT request with headers
+PUT https://httpbin.org/put
+Content-Type: application/json
+Authorization: Bearer test-token
+X-Custom-Header: custom-value
+
+{
+    "name": "Updated Name"
+}

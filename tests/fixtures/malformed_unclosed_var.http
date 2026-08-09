@@ -1,0 +1,2 @@
+GET https://httpbin.org/get?q={{unclosed_var
+Accept: application/json

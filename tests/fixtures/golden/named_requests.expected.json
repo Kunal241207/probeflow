@@ -1,0 +1,60 @@
+{
+  "filename": "named_requests.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.example.com/users",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": "listUsers",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "GET",
+      "url": "https://api.example.com/users/1",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": "getUser",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "POST",
+      "url": "https://api.example.com/users",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\"name\": \"Alice\", \"email\": \"alice@example.com\"}",
+        "content_type": "application/json"
+      },
+      "name": "createUser",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

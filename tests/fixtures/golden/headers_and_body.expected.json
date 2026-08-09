@@ -1,0 +1,66 @@
+{
+  "filename": "headers_and_body.http",
+  "requests": [
+    {
+      "method": "POST",
+      "url": "https://api.example.com/users",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Accept",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer token123"
+        },
+        {
+          "name": "X-Request-Id",
+          "value": "req-001"
+        }
+      ],
+      "body": {
+        "content": "{\n    \"name\": \"Alice Johnson\",\n    \"email\": \"alice@example.com\",\n    \"role\": \"developer\",\n    \"tags\": [\"backend\", \"python\"]\n}",
+        "content_type": "application/json"
+      },
+      "name": "createUser",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "PUT",
+      "url": "https://api.example.com/users/1",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Accept",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer token123"
+        }
+      ],
+      "body": {
+        "content": "{\n    \"name\": \"Alice Johnson-Smith\",\n    \"role\": \"senior_developer\"\n}",
+        "content_type": "application/json"
+      },
+      "name": "updateUser",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

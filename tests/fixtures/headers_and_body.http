@@ -1,0 +1,26 @@
+### @name = createUser
+POST https://api.example.com/users
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer token123
+X-Request-Id: req-001
+
+{
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "role": "developer",
+    "tags": ["backend", "python"]
+}
+
+###
+
+### @name = updateUser
+PUT https://api.example.com/users/1
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer token123
+
+{
+    "name": "Alice Johnson-Smith",
+    "role": "senior_developer"
+}

@@ -1,0 +1,43 @@
+{
+  "filename": "http_version.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://httpbin.org/get",
+      "http_version": "HTTP/1.1",
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "POST",
+      "url": "https://httpbin.org/post",
+      "http_version": "HTTP/2.0",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\"test\": true}",
+        "content_type": "application/json"
+      },
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

@@ -1,0 +1,51 @@
+{
+  "filename": "env_variables.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "{{base_url}}/users",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{auth_token}}"
+        },
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": "getUsers",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "POST",
+      "url": "{{base_url}}/users",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{auth_token}}"
+        }
+      ],
+      "body": {
+        "content": "{\"name\": \"{{user_name}}\", \"email\": \"{{user_email}}\"}",
+        "content_type": "application/json"
+      },
+      "name": "createUser",
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": "staging"
+}

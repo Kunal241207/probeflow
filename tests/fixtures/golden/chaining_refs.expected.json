@@ -1,0 +1,118 @@
+{
+  "filename": "chaining_refs.http",
+  "requests": [
+    {
+      "method": "POST",
+      "url": "https://api.example.com/auth",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\"username\": \"alice\", \"password\": \"secret\"}",
+        "content_type": "application/json"
+      },
+      "name": "login",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "==",
+            "expected": 200,
+            "raw_line": "status == 200"
+          },
+          {
+            "target": "body",
+            "path": "$.token",
+            "operator": "is",
+            "expected": "string",
+            "raw_line": "body.$.token is string"
+          }
+        ]
+      },
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "GET",
+      "url": "https://api.example.com/me",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{login.response.body.$.token}}"
+        }
+      ],
+      "body": null,
+      "name": "getProfile",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "==",
+            "expected": 200,
+            "raw_line": "status == 200"
+          },
+          {
+            "target": "body",
+            "path": "$.username",
+            "operator": "==",
+            "expected": "alice",
+            "raw_line": "body.$.username == \"alice\""
+          }
+        ]
+      },
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "PUT",
+      "url": "https://api.example.com/me",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{login.response.body.$.token}}"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\"display_name\": \"Alice Wonderland\"}",
+        "content_type": "application/json"
+      },
+      "name": "updateProfile",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "==",
+            "expected": 200,
+            "raw_line": "status == 200"
+          },
+          {
+            "target": "body",
+            "path": "$.display_name",
+            "operator": "==",
+            "expected": "Alice Wonderland",
+            "raw_line": "body.$.display_name == \"Alice Wonderland\""
+          }
+        ]
+      },
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

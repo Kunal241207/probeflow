@@ -1,0 +1,137 @@
+{
+  "filename": "assert_blocks.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.example.com/users/1",
+      "http_version": null,
+      "headers": [],
+      "body": null,
+      "name": "getUser",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "==",
+            "expected": 200,
+            "raw_line": "status == 200"
+          },
+          {
+            "target": "body",
+            "path": "$.name",
+            "operator": "==",
+            "expected": "Alice",
+            "raw_line": "body.$.name == \"Alice\""
+          },
+          {
+            "target": "body",
+            "path": "$.email",
+            "operator": "is",
+            "expected": "string",
+            "raw_line": "body.$.email is string"
+          },
+          {
+            "target": "body",
+            "path": "$.roles",
+            "operator": "is",
+            "expected": "array",
+            "raw_line": "body.$.roles is array"
+          },
+          {
+            "target": "body",
+            "path": "$.address",
+            "operator": "exists",
+            "expected": null,
+            "raw_line": "body.$.address exists"
+          },
+          {
+            "target": "body",
+            "path": "$.deleted",
+            "operator": "not exists",
+            "expected": null,
+            "raw_line": "body.$.deleted not exists"
+          },
+          {
+            "target": "duration",
+            "path": null,
+            "operator": "<",
+            "expected": 500,
+            "raw_line": "duration < 500ms"
+          },
+          {
+            "target": "header",
+            "path": "Content-Type",
+            "operator": "contains",
+            "expected": "application/json",
+            "raw_line": "header.Content-Type contains \"application/json\""
+          },
+          {
+            "target": "header",
+            "path": "X-Request-Id",
+            "operator": "exists",
+            "expected": null,
+            "raw_line": "header.X-Request-Id exists"
+          }
+        ]
+      },
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "GET",
+      "url": "https://api.example.com/users",
+      "http_version": null,
+      "headers": [],
+      "body": null,
+      "name": "listUsers",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "in",
+            "expected": [
+              200,
+              201
+            ],
+            "raw_line": "status in [200, 201]"
+          },
+          {
+            "target": "body",
+            "path": "$.users[0].name",
+            "operator": "==",
+            "expected": "Alice",
+            "raw_line": "body.$.users[0].name == \"Alice\""
+          },
+          {
+            "target": "body",
+            "path": "$.total",
+            "operator": "is",
+            "expected": "number",
+            "raw_line": "body.$.total is number"
+          },
+          {
+            "target": "header",
+            "path": "Content-Type",
+            "operator": "==",
+            "expected": "application/json",
+            "raw_line": "header.Content-Type == \"application/json\""
+          },
+          {
+            "target": "duration",
+            "path": null,
+            "operator": "<",
+            "expected": 2000,
+            "raw_line": "duration < 2000ms"
+          }
+        ]
+      },
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

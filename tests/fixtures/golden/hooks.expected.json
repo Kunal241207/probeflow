@@ -1,0 +1,49 @@
+{
+  "filename": "hooks.http",
+  "requests": [
+    {
+      "method": "POST",
+      "url": "https://api.example.com/resources",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\"name\": \"test-resource\"}",
+        "content_type": "application/json"
+      },
+      "name": "createResource",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "==",
+            "expected": 201,
+            "raw_line": "status == 201"
+          },
+          {
+            "target": "body",
+            "path": "$.id",
+            "operator": "is",
+            "expected": "number",
+            "raw_line": "body.$.id is number"
+          }
+        ]
+      },
+      "before_hook": {
+        "file_path": "hooks.py",
+        "function_name": "sign_request"
+      },
+      "after_hook": {
+        "file_path": "hooks.py",
+        "function_name": "verify_signature"
+      }
+    }
+  ],
+  "environment_name": null
+}

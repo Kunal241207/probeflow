@@ -1,0 +1,75 @@
+{
+  "filename": "jetbrains_compat.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://httpbin.org/get",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "POST",
+      "url": "https://httpbin.org/post",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\n    \"key\": \"value\"\n}",
+        "content_type": "application/json"
+      },
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "DELETE",
+      "url": "https://httpbin.org/delete",
+      "http_version": null,
+      "headers": [],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "PATCH",
+      "url": "https://httpbin.org/patch",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\"field\": \"patched\"}",
+        "content_type": "application/json"
+      },
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

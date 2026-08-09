@@ -1,0 +1,88 @@
+{
+  "filename": "vscode_compat.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://httpbin.org/get",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "POST",
+      "url": "https://httpbin.org/post",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "content": "{\n    \"message\": \"Hello from VS Code REST Client\",\n    \"timestamp\": \"2024-01-01T00:00:00Z\"\n}",
+        "content_type": "application/json"
+      },
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "GET",
+      "url": "https://httpbin.org/get?page=1&limit=10",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Accept",
+          "value": "application/json"
+        }
+      ],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    },
+    {
+      "method": "PUT",
+      "url": "https://httpbin.org/put",
+      "http_version": null,
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer test-token"
+        },
+        {
+          "name": "X-Custom-Header",
+          "value": "custom-value"
+        }
+      ],
+      "body": {
+        "content": "{\n    \"name\": \"Updated Name\"\n}",
+        "content_type": "application/json"
+      },
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

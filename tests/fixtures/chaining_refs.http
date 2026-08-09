@@ -1,0 +1,32 @@
+### @name = login
+POST https://api.example.com/auth
+Content-Type: application/json
+
+{"username": "alice", "password": "secret"}
+
+### @assert
+# status == 200
+# body.$.token is string
+
+###
+
+### @name = getProfile
+GET https://api.example.com/me
+Authorization: Bearer {{login.response.body.$.token}}
+
+### @assert
+# status == 200
+# body.$.username == "alice"
+
+###
+
+### @name = updateProfile
+PUT https://api.example.com/me
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+
+{"display_name": "Alice Wonderland"}
+
+### @assert
+# status == 200
+# body.$.display_name == "Alice Wonderland"

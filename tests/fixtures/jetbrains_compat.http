@@ -1,0 +1,26 @@
+### Simple GET
+GET https://httpbin.org/get
+Accept: application/json
+
+###
+
+### POST with body
+POST https://httpbin.org/post
+Content-Type: application/json
+
+{
+    "key": "value"
+}
+
+###
+
+### DELETE
+DELETE https://httpbin.org/delete
+
+###
+
+### PATCH
+PATCH https://httpbin.org/patch
+Content-Type: application/json
+
+{"field": "patched"}

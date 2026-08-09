@@ -1,0 +1,53 @@
+{
+  "filename": "assert_literals.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://httpbin.org/get",
+      "http_version": null,
+      "headers": [],
+      "body": null,
+      "name": "floatAndList",
+      "environment_variables": {},
+      "assertions": {
+        "assertions": [
+          {
+            "target": "status",
+            "path": null,
+            "operator": "in",
+            "expected": [
+              200,
+              201,
+              202
+            ],
+            "raw_line": "status in [200, 201, 202]"
+          },
+          {
+            "target": "body",
+            "path": "$.id",
+            "operator": "==",
+            "expected": 123.45,
+            "raw_line": "body.$.id == 123.45"
+          },
+          {
+            "target": "body",
+            "path": "$.empty_list",
+            "operator": "in",
+            "expected": [],
+            "raw_line": "body.$.empty_list in []"
+          },
+          {
+            "target": "body",
+            "path": "$.deleted",
+            "operator": "==",
+            "expected": null,
+            "raw_line": "body.$.deleted == null"
+          }
+        ]
+      },
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

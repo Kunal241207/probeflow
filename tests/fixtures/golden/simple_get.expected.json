@@ -1,0 +1,18 @@
+{
+  "filename": "simple_get.http",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://httpbin.org/get",
+      "http_version": null,
+      "headers": [],
+      "body": null,
+      "name": null,
+      "environment_variables": {},
+      "assertions": null,
+      "before_hook": null,
+      "after_hook": null
+    }
+  ],
+  "environment_name": null
+}

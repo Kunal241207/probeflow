@@ -1,0 +1,15 @@
+### @env = staging
+
+### @name = getUsers
+GET {{base_url}}/users
+Authorization: Bearer {{auth_token}}
+Accept: application/json
+
+###
+
+### @name = createUser
+POST {{base_url}}/users
+Content-Type: application/json
+Authorization: Bearer {{auth_token}}
+
+{"name": "{{user_name}}", "email": "{{user_email}}"}

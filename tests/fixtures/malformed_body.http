@@ -1,0 +1,3 @@
+GET https://httpbin.org/get
+Accept: application/json
+This is body without a blank line separator

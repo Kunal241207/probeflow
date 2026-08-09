@@ -1,0 +1,14 @@
+// First request: list users
+GET https://api.example.com/users
+Accept: application/json
+
+###
+
+// Second request: get specific user
+GET https://api.example.com/users/42
+Accept: application/json
+
+###
+
+// Third request: delete user
+DELETE https://api.example.com/users/42
