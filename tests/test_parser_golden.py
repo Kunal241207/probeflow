@@ -65,7 +65,16 @@ def _request_file_to_dict(rf) -> dict:
 
     def _strip_spans(obj):
         if isinstance(obj, dict):
-            return {k: _strip_spans(v) for k, v in obj.items() if k != "span"}
+            return {
+                k: _strip_spans(v)
+                for k, v in obj.items()
+                if k != "span"
+                and not (
+                    (k == "oauth2" and v is None)
+                    or (k == "multipart" and not v)
+                    or (k == "auth" and v is None)
+                )
+            }
         if isinstance(obj, list):
             return [_strip_spans(item) for item in obj]
         return obj

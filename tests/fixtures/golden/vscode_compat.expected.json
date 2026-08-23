@@ -16,9 +16,7 @@
       "environment_variables": {},
       "assertions": null,
       "before_hook": null,
-      "after_hook": null,
-      "auth": null,
-      "multipart": []
+      "after_hook": null
     },
     {
       "method": "POST",
@@ -38,9 +36,7 @@
       "environment_variables": {},
       "assertions": null,
       "before_hook": null,
-      "after_hook": null,
-      "auth": null,
-      "multipart": []
+      "after_hook": null
     },
     {
       "method": "GET",
@@ -57,9 +53,7 @@
       "environment_variables": {},
       "assertions": null,
       "before_hook": null,
-      "after_hook": null,
-      "auth": null,
-      "multipart": []
+      "after_hook": null
     },
     {
       "method": "PUT",
@@ -87,9 +81,7 @@
       "environment_variables": {},
       "assertions": null,
       "before_hook": null,
-      "after_hook": null,
-      "auth": null,
-      "multipart": []
+      "after_hook": null
     }
   ],
   "environment_name": null

@@ -97,6 +97,9 @@ request_block   = { pre_request_meta }
 pre_request_meta  = comment_line
                   | name_directive
                   | env_directive
+                  | oauth2_directive
+                  | form_directive
+                  | file_directive
                   | before_hook_directive
                   | blank_line ;
 
@@ -260,6 +263,44 @@ references, but the current test runner refuses hook-bearing files because no
 hook executor is shipped yet. A future executor must keep `--allow-scripts` as
 an explicit opt-in and must never run hooks by default.
 
+### 6.4 `@oauth2` — Client Credentials
+
+OAuth2 client-credentials authentication is declared per request. Values may
+use normal `{{variable}}` interpolation. Tokens are held only in memory for one
+run and refreshed 30 seconds before their advertised expiry.
+
+```ebnf
+oauth2_directive = { ws } , "###" , { ws } , "@oauth2"
+                 , { ws } , "=" , { ws } , "client-credentials"
+                 , ws , token_url , ws , client_id , ws , client_secret
+                 , { ws , scope } , newline ;
+```
+
+```http
+### @oauth2 = client-credentials {{oauth_token_url}} {{client_id}} {{client_secret}} read write
+GET https://api.example.com/me
+```
+
+### 6.5 `@form` / `@file` — Multipart Uploads
+
+`@form` adds a text field and `@file` adds a file part. Paths are relative to
+the `.http` file. Multipart requests must not set `Content-Type`; probeflow
+uses the HTTP client's generated boundary.
+
+```ebnf
+form_directive = { ws } , "###" , { ws } , "@form"
+               , { ws } , "=" , { ws } , identifier , "=" , rest_of_line , newline ;
+file_directive = { ws } , "###" , { ws } , "@file"
+               , { ws } , "=" , { ws } , identifier , "=" , file_path
+               , [ ";type=" , media_type ] , newline ;
+```
+
+```http
+### @form = title=Quarterly report
+### @file = attachment=fixtures/report.pdf;type=application/pdf
+POST https://api.example.com/uploads
+```
+
 ---
 
 ## 7. Assertion Block
@@ -369,8 +410,9 @@ response_field  = "body" , "." , jsonpath_expr
 
 ### 8.1 Resolution Rules
 
-1. Chaining references resolve **only within a single run** (one file or one
-   directory run as a suite).
+1. Chaining references resolve **only within one `.http` file**. A directory
+   collection runs files independently, so a named response never leaks across
+   files.
 2. Requests are evaluated in **declaration order** (top-to-bottom in the file).
 3. A reference to a request that **hasn't run yet** is a **hard parse error**
    with a clear message — not a silent empty string.
@@ -415,7 +457,18 @@ When resolving a `{{name}}` reference:
 
 ---
 
-## 10. Cross-Tool Compatibility
+## 10. Collections
+
+`probeflow test` accepts either a `.http` file or a directory. A directory is
+searched recursively for `.http` files in lexical path order. Each file loads
+its own environment and has its own response-chain scope. Results are aggregated
+into one pass/fail summary, and any file failure makes the command exit with 1.
+
+```text
+probeflow test requests/
+```
+
+## 11. Cross-Tool Compatibility
 
 ### 10.1 Design Principle
 
@@ -443,9 +496,16 @@ interpret as either:
 - probeflow directives must **never** be mistaken for request content (headers,
   body, URL) by other tools.
 
+## 12. CI-Safe Output
+
+The CLI writes ANSI color only to interactive terminals. It disables color when
+either `--no-color` is passed or `NO_COLOR` is present with a non-empty value;
+an empty `NO_COLOR` value does not disable color. This follows
+<https://no-color.org/>. CI workflows should use `NO_COLOR=1` for stable logs.
+
 ---
 
-## 11. Error Reporting
+## 13. Error Reporting
 
 All parse errors must include:
 
@@ -456,7 +516,7 @@ All parse errors must include:
 - **No bare stack traces** — all Python exceptions must be caught and converted
   to structured `ParseError` objects
 
-### 11.1 Error Message Format
+### 13.1 Error Message Format
 
 ```
 <filename>:<line>:<column>: error: <message>
@@ -470,7 +530,7 @@ requests.http:12:3: error: Invalid assertion syntax: 'status = 200'. Did you mea
 
 ---
 
-## 12. Versioning
+## 14. Versioning
 
 This specification is versioned. The version number appears at the top of this document.
 

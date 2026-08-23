@@ -19,16 +19,12 @@ def strip_ansi(text: str) -> str:
 
 
 class TestRunCommand:
-    """Tests for the `probeflow run` command."""
-
     @respx.mock
     def test_run_simple_get(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET https://api.example.com/users\n")
-
         respx.get("https://api.example.com/users").respond(
-            json=[{"id": 1, "name": "Alice"}],
-            status_code=200,
+            json=[{"id": 1, "name": "Alice"}], status_code=200
         )
 
         result = runner.invoke(app, ["run", str(http_file)])
@@ -50,11 +46,7 @@ class TestRunCommand:
             {"name": "Bob"}
         """)
         )
-
-        respx.get("https://api.example.com/users").respond(
-            json=[{"id": 1}],
-            status_code=200,
-        )
+        respx.get("https://api.example.com/users").respond(json=[{"id": 1}], status_code=200)
 
         result = runner.invoke(app, ["run", str(http_file), "--index", "0"])
         assert result.exit_code == 0
@@ -63,14 +55,9 @@ class TestRunCommand:
     def test_run_with_env(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET {{base_url}}/users\n")
-
         env_file = tmp_path / ".env.dev"
         env_file.write_text("base_url=https://api.example.com\n")
-
-        respx.get("https://api.example.com/users").respond(
-            json=[],
-            status_code=200,
-        )
+        respx.get("https://api.example.com/users").respond(json=[], status_code=200)
 
         result = runner.invoke(app, ["run", str(http_file), "--env", "dev"])
         assert result.exit_code == 0
@@ -83,7 +70,6 @@ class TestRunCommand:
     def test_run_connection_error(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET https://nonexistent.invalid.test/api\n")
-
         result = runner.invoke(app, ["run", str(http_file)])
         assert result.exit_code == 1
 
@@ -91,20 +77,36 @@ class TestRunCommand:
     def test_run_quiet_mode(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET https://api.example.com/users\n")
-
-        respx.get("https://api.example.com/users").respond(
-            json=[],
-            status_code=200,
-        )
+        respx.get("https://api.example.com/users").respond(json=[], status_code=200)
 
         result = runner.invoke(app, ["run", str(http_file), "--quiet"])
         assert result.exit_code == 0
-        # In quiet mode, no output should appear
         assert "HTTP/1.1" not in result.stdout
 
 
 class TestTestCommand:
-    """Tests for the enforceable API test loop."""
+    @respx.mock
+    def test_test_directory_aggregates_files_and_failures(self, tmp_path):
+        collection = tmp_path / "requests"
+        collection.mkdir()
+        nested = collection / "nested"
+        nested.mkdir()
+        (collection / "a.http").write_text(
+            "GET https://api.example.com/a\n### @assert\n# status == 200\n"
+        )
+        (nested / "b.http").write_text(
+            "GET https://api.example.com/b\n### @assert\n# status == 201\n"
+        )
+        respx.get("https://api.example.com/a").respond(status_code=200)
+        respx.get("https://api.example.com/b").respond(status_code=200)
+
+        result = runner.invoke(app, ["test", str(collection)])
+        output = strip_ansi(result.stdout + result.stderr)
+
+        assert result.exit_code == 1
+        assert "a.http::request-1" in output
+        assert "nested/b.http::request-1" in output
+        assert "1 passed, 1 failed across 2 file(s)" in output
 
     @respx.mock
     def test_test_passes_assertions_and_writes_reports(self, tmp_path):
@@ -121,21 +123,13 @@ class TestTestCommand:
         )
         json_file = tmp_path / "results.json"
         junit_file = tmp_path / "results.xml"
-
         respx.get("https://api.example.com/users/1").respond(
             json={"name": "Alice"}, status_code=200
         )
 
         result = runner.invoke(
             app,
-            [
-                "test",
-                str(http_file),
-                "--json",
-                str(json_file),
-                "--junit-xml",
-                str(junit_file),
-            ],
+            ["test", str(http_file), "--json", str(json_file), "--junit-xml", str(junit_file)],
         )
 
         assert result.exit_code == 0
@@ -158,9 +152,11 @@ class TestTestCommand:
         respx.get("https://api.example.com/users/1").respond(status_code=200)
 
         result = runner.invoke(app, ["test", str(http_file)])
-
         assert result.exit_code == 1
-        assert "FAIL" in result.stderr
+        output = strip_ansi(result.stdout + result.stderr)
+        assert "FAIL" in output
+        assert "-201" in output
+        assert "+200" in output
 
     @respx.mock
     def test_test_resolves_response_chain_in_order(self, tmp_path):
@@ -188,7 +184,6 @@ class TestTestCommand:
         )
 
         result = runner.invoke(app, ["test", str(http_file)])
-
         assert result.exit_code == 0
         assert profile_route.calls.last.request.headers["Authorization"] == "Bearer abc123"
 
@@ -202,18 +197,70 @@ class TestTestCommand:
         )
 
         result = runner.invoke(app, ["test", str(http_file)])
-
         assert result.exit_code == 1
         assert "arbitrary code" in result.stderr
 
+    def test_test_empty_directory(self, tmp_path):
+        empty_dir = tmp_path / "empty_dir"
+        empty_dir.mkdir()
+        result = runner.invoke(app, ["test", str(empty_dir)])
+        assert result.exit_code == 1
+        output = strip_ansi(result.stdout + result.stderr)
+        assert "No .http files found under" in output
+        assert "0 passed, 1 failed across 0 file(s)" in output
+
+    @respx.mock
+    def test_test_directory_with_syntax_error_file_and_valid_file(self, tmp_path):
+        collection = tmp_path / "requests"
+        collection.mkdir()
+        (collection / "01_valid.http").write_text(
+            "GET https://api.example.com/valid\n### @assert\n# status == 200\n"
+        )
+        (collection / "02_broken.http").write_text(
+            "INVALID_METHOD https://api.example.com/broken\n"
+        )
+        respx.get("https://api.example.com/valid").respond(status_code=200)
+
+        result = runner.invoke(app, ["test", str(collection)])
+        assert result.exit_code == 1
+        output = strip_ansi(result.stdout + result.stderr)
+        assert "01_valid.http::request-1" in output
+        assert "PASS" in output
+        assert "02_broken.http::parse" in output
+        assert "FAIL" in output
+        assert "1 passed, 1 failed across 2 file(s)" in output
+
+    @respx.mock
+    def test_test_multiple_failed_assertions_diff(self, tmp_path):
+        http_file = tmp_path / "multi_assert.http"
+        http_file.write_text(
+            textwrap.dedent("""\
+            GET https://api.example.com/users/1
+
+            ### @assert
+            # status == 201
+            # header.Content-Type == "application/xml"
+        """)
+        )
+        respx.get("https://api.example.com/users/1").respond(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+        )
+
+        result = runner.invoke(app, ["test", str(http_file)])
+        assert result.exit_code == 1
+        output = strip_ansi(result.stdout + result.stderr)
+        assert "FAIL" in output
+        assert "-201" in output
+        assert "+200" in output
+        assert '-"application/xml"' in output
+        assert '+"application/json"' in output
+
 
 class TestValidateCommand:
-    """Tests for the `probeflow validate` command."""
-
     def test_validate_valid_file(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET https://api.example.com/users\n")
-
         result = runner.invoke(app, ["validate", str(http_file)])
         assert result.exit_code == 0
         assert "valid" in result.stdout
@@ -229,7 +276,6 @@ class TestValidateCommand:
 
         env_file = tmp_path / ".env.dev"
         env_file.write_text("base_url=https://api.example.com\n")
-
         result = runner.invoke(app, ["validate", str(http_file)])
         assert result.exit_code == 0
         assert "valid" in result.stdout
@@ -237,9 +283,8 @@ class TestValidateCommand:
     def test_validate_unresolved_variables(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET {{unknown_var}}/users\n")
-
         result = runner.invoke(app, ["validate", str(http_file)])
-        assert result.exit_code == 0  # Still valid syntax, just has unresolved vars
+        assert result.exit_code == 0
         assert "unresolved" in result.stdout.lower() or "{{unknown_var}}" in result.stdout
 
     def test_validate_nonexistent_file(self):
@@ -248,8 +293,6 @@ class TestValidateCommand:
 
 
 class TestFormatCommand:
-    """Tests for the `probeflow format` command."""
-
     def test_format_in_place(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text(
@@ -262,15 +305,11 @@ class TestFormatCommand:
 
         result = runner.invoke(app, ["format", str(http_file)])
         assert result.exit_code == 0
-
-        # Check the file was reformatted
-        content = http_file.read_text()
-        assert "GET" in content  # Method should be uppercased
+        assert "GET" in http_file.read_text()
 
     def test_format_check_already_formatted(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("GET https://api.example.com/users\n")
-
         result = runner.invoke(app, ["format", str(http_file), "--check"])
         assert result.exit_code == 0
         assert "formatted" in result.stdout.lower()
@@ -278,31 +317,25 @@ class TestFormatCommand:
     def test_format_output_file(self, tmp_path):
         http_file = tmp_path / "test.http"
         http_file.write_text("### @name = test\nget https://example.com\n")
-
         output_file = tmp_path / "formatted.http"
         result = runner.invoke(app, ["format", str(http_file), "-o", str(output_file)])
         assert result.exit_code == 0
         assert output_file.exists()
 
 
-class TestVersionCommand:
-    """Tests for the `probeflow version` command."""
-
+class TestVersionAndHelp:
     def test_version_output(self):
         result = runner.invoke(app, ["version"])
         assert result.exit_code == 0
         assert "probeflow" in result.stdout
         assert "0.2.0" in result.stdout
 
-
-class TestHelpOutput:
-    """Tests for help text."""
-
     def test_main_help(self):
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
         output = strip_ansi(result.stdout)
         assert "probeflow" in output
+        assert "--no-color" in output
 
     def test_run_help(self):
         result = runner.invoke(app, ["run", "--help"])

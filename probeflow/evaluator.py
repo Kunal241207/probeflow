@@ -1,3 +1,7 @@
+"""Assertion evaluation against HTTP responses."""
+
+from __future__ import annotations
+
 import re
 from typing import Any
 
@@ -16,11 +20,6 @@ class AssertionFailure(Exception):
 
 
 def evaluate_assertion(assertion: Assertion, response: Response, duration_ms: float) -> None:
-    """Evaluate an assertion against an HTTP response.
-
-    Raises:
-        AssertionFailure: If the assertion fails.
-    """
     actual_value = _extract_actual_value(assertion, response, duration_ms)
 
     if assertion.operator == AssertionOperator.EXISTS:
@@ -52,14 +51,9 @@ def _extract_actual_value(assertion: Assertion, response: Response, duration_ms:
         return duration_ms
 
     if assertion.target == AssertionTarget.HEADER:
-        # Case-insensitive header lookup
         header_name = assertion.path or ""
         return next(
-            (
-                value
-                for name, value in response.headers.items()
-                if name.lower() == header_name.lower()
-            ),
+            (v for k, v in response.headers.items() if k.lower() == header_name.lower()),
             None,
         )
 
@@ -68,7 +62,7 @@ def _extract_actual_value(assertion: Assertion, response: Response, duration_ms:
             return response.body
 
         if response.parsed_body is None:
-            return None  # Cannot extract JSONPath from non-JSON body
+            return None
 
         return _extract_jsonpath(response.parsed_body, assertion.path)
 
@@ -76,10 +70,6 @@ def _extract_actual_value(assertion: Assertion, response: Response, duration_ms:
 
 
 def _extract_jsonpath(data: Any, path: str) -> Any:
-    """Extract a value from a JSON object using a subset of JSONPath.
-
-    Supports: $.field, $.array[0], $.field.nested
-    """
     if not path.startswith("$."):
         return None
 
@@ -91,7 +81,6 @@ def _extract_jsonpath(data: Any, path: str) -> Any:
             continue
 
         if part.startswith("[") and part.endswith("]"):
-            # Array index
             try:
                 idx = int(part[1:-1])
                 if isinstance(current, list) and 0 <= idx < len(current):
@@ -101,7 +90,6 @@ def _extract_jsonpath(data: Any, path: str) -> Any:
             except ValueError:
                 return None
         else:
-            # Object key
             if isinstance(current, dict) and part in current:
                 current = current[part]
             else:
@@ -128,7 +116,6 @@ def _compare_values(assertion: Assertion, actual: Any) -> None:
         AssertionOperator.GT,
         AssertionOperator.GE,
     ):
-        # Type coercion for comparison
         if actual is None:
             raise AssertionFailure(f"Cannot compare {op.value} on null", expected, actual)
 
@@ -184,34 +171,21 @@ def _compare_values(assertion: Assertion, actual: Any) -> None:
             raise AssertionFailure(f"Invalid regex '{expected}': {e}", expected, actual)
 
     elif op == AssertionOperator.IS:
-        _valid_type_names = {"string", "number", "boolean", "object", "array"}
-        if expected not in _valid_type_names:
+        type_checks = {
+            "string": lambda x: isinstance(x, str),
+            "number": lambda x: isinstance(x, (int, float)) and not isinstance(x, bool),
+            "boolean": lambda x: isinstance(x, bool),
+            "object": lambda x: isinstance(x, dict),
+            "array": lambda x: isinstance(x, list),
+        }
+        checker = type_checks.get(str(expected))
+        if checker is None:
             raise AssertionFailure(
-                f"Unknown type name '{expected}'. "
-                f"Valid types: {', '.join(sorted(_valid_type_names))}",
+                f"Unknown type name: {expected}",
                 expected,
                 actual,
             )
-        if expected == "string" and not isinstance(actual, str):
+        if not checker(actual):
             raise AssertionFailure(
-                f"Expected type string, got {type(actual).__name__}", expected, actual
-            )
-        elif expected == "number" and (
-            not isinstance(actual, (int, float)) or isinstance(actual, bool)
-        ):
-            # bool is a subclass of int in Python — exclude it from the number check
-            raise AssertionFailure(
-                f"Expected type number, got {type(actual).__name__}", expected, actual
-            )
-        elif expected == "boolean" and not isinstance(actual, bool):
-            raise AssertionFailure(
-                f"Expected type boolean, got {type(actual).__name__}", expected, actual
-            )
-        elif expected == "object" and not isinstance(actual, dict):
-            raise AssertionFailure(
-                f"Expected type object, got {type(actual).__name__}", expected, actual
-            )
-        elif expected == "array" and not isinstance(actual, list):
-            raise AssertionFailure(
-                f"Expected type array, got {type(actual).__name__}", expected, actual
+                f"Expected type {expected}, got {type(actual).__name__}", expected, actual
             )

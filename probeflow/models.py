@@ -1,9 +1,4 @@
-"""Core data models for probeflow.
-
-This module defines the Pydantic models that represent parsed HTTP requests,
-environment configurations, and response data. These models form the AST
-produced by the parser from the formal grammar in docs/spec.md.
-"""
+"""Core data models for probeflow."""
 
 from __future__ import annotations
 
@@ -29,16 +24,8 @@ class HTTPMethod(str, Enum):
 SUPPORTED_METHODS = [m.value for m in HTTPMethod]
 
 
-# ---------------------------------------------------------------------------
-# Source location tracking
-# ---------------------------------------------------------------------------
-
-
 class SourceSpan(BaseModel):
-    """Tracks the source location of a parsed construct.
-
-    All positions are 1-indexed to match editor conventions.
-    """
+    """1-indexed source location of a parsed construct."""
 
     start_line: int
     start_col: int
@@ -51,11 +38,6 @@ class SourceSpan(BaseModel):
         return f"line {self.start_line}:{self.start_col} - line {self.end_line}:{self.end_col}"
 
 
-# ---------------------------------------------------------------------------
-# Headers and body
-# ---------------------------------------------------------------------------
-
-
 class Header(BaseModel):
     """A single HTTP header key-value pair."""
 
@@ -65,10 +47,7 @@ class Header(BaseModel):
 
 
 class RequestBody(BaseModel):
-    """The body of an HTTP request.
-
-    Supports both raw string bodies and JSON-structured bodies.
-    """
+    """The body of an HTTP request."""
 
     content: str
     content_type: str | None = None
@@ -76,18 +55,12 @@ class RequestBody(BaseModel):
 
     @property
     def parsed(self) -> Any:
-        """Attempt to parse the body as JSON, returning the raw string on failure."""
         if self.content_type == "application/json":
             try:
                 return json.loads(self.content)
             except (json.JSONDecodeError, ValueError):
                 pass
         return self.content
-
-
-# ---------------------------------------------------------------------------
-# Assertions (spec §7)
-# ---------------------------------------------------------------------------
 
 
 class AssertionOperator(str, Enum):
@@ -108,7 +81,7 @@ class AssertionOperator(str, Enum):
 
 
 class AssertionTarget(str, Enum):
-    """The left-hand-side target category of an assertion."""
+    """Left-hand-side target category of an assertion."""
 
     STATUS = "status"
     BODY = "body"
@@ -117,56 +90,49 @@ class AssertionTarget(str, Enum):
 
 
 class Assertion(BaseModel):
-    """A single assertion within an @assert block.
-
-    Examples:
-        status == 200
-        body.$.name == "Alice"
-        header.Content-Type contains "application/json"
-        duration < 500ms
-    """
+    """A single assertion within an @assert block."""
 
     target: AssertionTarget
     path: str | None = None
-    """JSONPath or header name for body/header assertions. None for status/duration."""
-
     operator: AssertionOperator
     expected: Any = None
-    """The expected value. None for 'exists' / 'not exists'."""
-
     raw_line: str = ""
-    """Original assertion text for error reporting."""
-
     span: SourceSpan | None = None
 
 
 class AssertBlock(BaseModel):
-    """A collection of assertions attached to a request (spec §7)."""
+    """A collection of assertions attached to a request."""
 
     assertions: list[Assertion] = Field(default_factory=list)
     span: SourceSpan | None = None
 
 
-# ---------------------------------------------------------------------------
-# Script hooks (spec §6.3)
-# ---------------------------------------------------------------------------
-
-
 class HookRef(BaseModel):
-    """A reference to a Python hook function (spec §6.3).
-
-    Format: file_path:function_name
-    Example: hooks.py:sign_request
-    """
+    """A reference to a Python hook function (file_path:function_name)."""
 
     file_path: str
     function_name: str
     span: SourceSpan | None = None
 
 
-# ---------------------------------------------------------------------------
-# Request and file
-# ---------------------------------------------------------------------------
+class OAuth2ClientCredentials(BaseModel):
+    """OAuth2 client-credentials configuration for a request."""
+
+    token_url: str
+    client_id: str
+    client_secret: str
+    scopes: list[str] = Field(default_factory=list)
+    span: SourceSpan | None = None
+
+
+class MultipartPart(BaseModel):
+    """One text or file part from @form or @file request metadata."""
+
+    name: str
+    value: str | None = None
+    file_path: str | None = None
+    content_type: str | None = None
+    span: SourceSpan | None = None
 
 
 class AuthScheme(str, Enum):
@@ -191,20 +157,8 @@ class AuthConfig(BaseModel):
     span: SourceSpan | None = None
 
 
-class MultipartPart(BaseModel):
-    name: str
-    value: str | None = None
-    file_path: str | None = None
-    content_type: str | None = None
-    span: SourceSpan | None = None
-
-
 class Request(BaseModel):
-    """A parsed HTTP request from a .http file.
-
-    Represents a single request block with its method, URL, headers,
-    body, optional name, and optional environment variables.
-    """
+    """A parsed HTTP request from a .http file."""
 
     method: HTTPMethod
     url: str
@@ -213,62 +167,39 @@ class Request(BaseModel):
     body: RequestBody | None = None
     name: str | None = None
     environment_variables: dict[str, str] = Field(default_factory=dict)
-
-    # probeflow extensions
     assertions: AssertBlock | None = None
     before_hook: HookRef | None = None
     after_hook: HookRef | None = None
     auth: AuthConfig | None = None
+    oauth2: OAuth2ClientCredentials | None = None
     multipart: list[MultipartPart] = Field(default_factory=list)
-
     span: SourceSpan | None = None
 
     @field_validator("method", mode="before")
     @classmethod
     def normalize_method(cls, v: str) -> str:
-        """Normalize method to uppercase."""
         if isinstance(v, str):
             return v.upper()
         return v
 
 
 class RequestFile(BaseModel):
-    """A complete .http file containing one or more requests.
-
-    Files are separated by `###` delimiters. Each block becomes one Request.
-    """
+    """A complete .http file containing one or more requests."""
 
     filename: str
     requests: list[Request] = Field(default_factory=list)
     environment_name: str | None = None
 
 
-# ---------------------------------------------------------------------------
-# Environment
-# ---------------------------------------------------------------------------
-
-
 class Environment(BaseModel):
-    """An environment configuration loaded from a .env file.
-
-    Stores key-value pairs that are substituted into request templates.
-    """
+    """Environment configuration key-value pairs."""
 
     name: str
     variables: dict[str, str] = Field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# Errors
-# ---------------------------------------------------------------------------
-
-
 class ParseError(Exception):
-    """Raised when a .http file cannot be parsed.
-
-    Always carries a human-readable message. Optionally carries
-    line and column numbers (1-indexed) for precise location reporting.
-    """
+    """Raised when a .http file cannot be parsed."""
 
     def __init__(
         self,
@@ -281,7 +212,6 @@ class ParseError(Exception):
         self.column = column
         self.filename = filename
 
-        # Build location prefix: "file.http:5:3: error: ..."
         parts: list[str] = []
         if filename:
             parts.append(filename)
