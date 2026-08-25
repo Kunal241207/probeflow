@@ -231,6 +231,53 @@ class TestTestCommand:
         assert "1 passed, 1 failed across 2 file(s)" in output
 
     @respx.mock
+    def test_missing_environment_continues_and_reports(self, tmp_path, monkeypatch):
+        import probeflow.test_runner as test_runner
+        from probeflow.environment import Environment, EnvironmentNotFoundError
+
+        collection = tmp_path / "requests"
+        ok_dir = collection / "ok"
+        bad_dir = collection / "bad"
+        ok_dir.mkdir(parents=True)
+        bad_dir.mkdir(parents=True)
+        (ok_dir / "ok.http").write_text(
+            "GET https://api.example.com/ok\n### @assert\n# status == 200\n"
+        )
+        (bad_dir / "needs-env.http").write_text("GET https://api.example.com/env\n")
+        respx.get("https://api.example.com/ok").respond(status_code=200)
+
+        def fake_load_environment(directory, env_name=None):
+            if directory == bad_dir:
+                raise EnvironmentNotFoundError(
+                    f"Environment file not found: {directory / '.env.ci'}"
+                )
+            return Environment(name="default", variables={})
+
+        monkeypatch.setattr(test_runner, "load_environment", fake_load_environment)
+
+        json_file = tmp_path / "results.json"
+        junit_file = tmp_path / "results.xml"
+        result = runner.invoke(
+            app,
+            ["test", str(collection), "--json", str(json_file), "--junit-xml", str(junit_file)],
+        )
+        assert result.exit_code == 1
+        output = strip_ansi(result.stdout + result.stderr)
+        assert "ok/ok.http::request-1" in output
+        assert "PASS" in output
+        assert "bad/needs-env.http::environment" in output
+        assert "FAIL" in output
+        assert "Environment file not found" in output
+
+        json_text = json_file.read_text()
+        assert '"passed": false' in json_text
+        assert "needs-env.http" in json_text
+        assert "Environment file not found" in json_text
+        junit_text = junit_file.read_text()
+        assert 'classname="probeflow.bad/needs-env.http"' in junit_text
+        assert "Environment file not found" in junit_text
+
+    @respx.mock
     def test_test_multiple_failed_assertions_diff(self, tmp_path):
         http_file = tmp_path / "multi_assert.http"
         http_file.write_text(
@@ -286,6 +333,52 @@ class TestValidateCommand:
         result = runner.invoke(app, ["validate", str(http_file)])
         assert result.exit_code == 0
         assert "unresolved" in result.stdout.lower() or "{{unknown_var}}" in result.stdout
+
+    def test_validate_unresolved_oauth2_and_multipart_fields(self, tmp_path):
+        http_file = tmp_path / "test.http"
+        http_file.write_text(
+            "### @oauth2 = client-credentials {{token_url}} {{client_id}}"
+            " {{client_secret}} {{scope_read}}\n"
+            "### @form = {{form_name}}={{form_value}}\n"
+            "### @file = {{file_name}}={{file_path}};type={{file_type}}\n"
+            "POST {{upload_url}}\n"
+            "Authorization: {{header_value}}\n"
+        )
+        result = runner.invoke(app, ["validate", str(http_file)])
+        assert result.exit_code == 0
+        output = strip_ansi(result.stdout)
+        for var in (
+            "token_url",
+            "client_id",
+            "client_secret",
+            "scope_read",
+            "form_name",
+            "form_value",
+            "file_name",
+            "file_path",
+            "file_type",
+            "upload_url",
+            "header_value",
+        ):
+            assert f"{{{{{var}}}}}" in output
+
+    def test_validate_unresolved_chaining_references(self, tmp_path):
+        http_file = tmp_path / "test.http"
+        http_file.write_text(
+            "GET https://api.example.com/users\n"
+            "Authorization: Bearer {{login.response.body.$.token}}\n"
+            "X-Request-Id: {{login.response.headers.X-Request-Id}}\n"
+            "X-Status: {{login.response.status}}\n"
+        )
+        result = runner.invoke(app, ["validate", str(http_file)])
+        assert result.exit_code == 0
+        output = strip_ansi(result.stdout)
+        for var in (
+            "login.response.body.$.token",
+            "login.response.headers.X-Request-Id",
+            "login.response.status",
+        ):
+            assert f"{{{{{var}}}}}" in output
 
     def test_validate_nonexistent_file(self):
         result = runner.invoke(app, ["validate", "/tmp/nonexistent.http"])

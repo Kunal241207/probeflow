@@ -218,6 +218,10 @@ env_directive   = { ws } , "###" , { ws } , "@env"
 Selects an environment file (`.env.<name>`) for variable resolution.
 Should appear at the top of the file (before any request block).
 
+The environment file is searched for starting at the `.http` file's directory
+and walking up the directory tree until found. This allows a single `.env` file
+at the project root to serve multiple `.http` files in subdirectories.
+
 **Example:**
 ```http
 ### @env = dev
@@ -239,8 +243,9 @@ file_path       = (* relative path to a .py file, no spaces *) ;
 ```
 
 Hook references point to a Python function in a sibling file.
-Hooks are **only executed** when the `--allow-scripts` CLI flag is provided.
-Without this flag, hook directives are parsed and validated but not executed.
+Hooks are **parsed and validated** but **not executed** in the current implementation.
+A future `--allow-scripts` CLI flag may be added to enable execution as an explicit opt-in.
+Without such a flag, hook directives are parsed and validated but not executed.
 
 **Example:**
 ```http
@@ -254,14 +259,13 @@ Content-Type: application/json
 ### @after = hooks.py:verify_signature
 ```
 
-> **Security**: Hooks execute arbitrary Python code. The `--allow-scripts` flag
-> is a security boundary. Files from untrusted sources (e.g., PRs) should never
-> be run with `--allow-scripts` unless the hook code has been reviewed.
+> **Security**: Hooks execute arbitrary Python code. Any future `--allow-scripts` flag
+> would be a security boundary. Files from untrusted sources (e.g., PRs) should never
+> be run with script execution enabled unless the hook code has been reviewed.
 
 **Current implementation status:** the parser validates and preserves hook
-references, but the current test runner refuses hook-bearing files because no
-hook executor is shipped yet. A future executor must keep `--allow-scripts` as
-an explicit opt-in and must never run hooks by default.
+references, but the test runner refuses to execute hook-bearing files (exit code 1)
+because no hook executor is implemented. Hook execution is a planned feature.
 
 ### 6.4 `@oauth2` — Client Credentials
 
@@ -450,10 +454,11 @@ When resolving a `{{name}}` reference:
 1. **Chaining references**: If `name` matches `<request_name>.response.*`, resolve
    from the named request's captured response.
 2. **Inline variables**: `### @key = value` directives within the same request block.
-3. **Environment file**: Variables from `.env.<name>` or `.env` file.
+3. **Environment file**: Variables from `.env.<name>` or `.env` file, searched
+   from the `.http` file's directory upward through parent directories.
 4. **System environment**: `os.environ` lookup.
-5. **Unresolved**: Left as-is (`{{name}}`) — produces a warning, not an error,
-   unless in `test` mode where unresolved variables are an error.
+5. **Unresolved**: Left as-is (`{{name}}`) — produces a warning in `run` mode,
+   but is an error in `test` mode.
 
 ---
 
@@ -461,8 +466,9 @@ When resolving a `{{name}}` reference:
 
 `probeflow test` accepts either a `.http` file or a directory. A directory is
 searched recursively for `.http` files in lexical path order. Each file loads
-its own environment and has its own response-chain scope. Results are aggregated
-into one pass/fail summary, and any file failure makes the command exit with 1.
+its own environment (searching upward from the file's directory for `.env` files)
+and has its own response-chain scope. Results are aggregated into one pass/fail
+summary, and any file failure makes the command exit with 1.
 
 ```text
 probeflow test requests/
@@ -470,7 +476,7 @@ probeflow test requests/
 
 ## 11. Cross-Tool Compatibility
 
-### 10.1 Design Principle
+### 11.1 Design Principle
 
 All probeflow-specific syntax is encoded using constructs that non-probeflow tools
 interpret as either:
@@ -479,7 +485,7 @@ interpret as either:
 - **Separators** (`###` lines) — treated as request block delimiters
 - **Template variables** (`{{...}}`) — treated as unresolved variables (warning, not error)
 
-### 10.2 Compatibility Matrix
+### 11.2 Compatibility Matrix
 
 | Construct | VS Code REST Client | JetBrains HTTP Client | probeflow |
 |-----------|--------------------|-----------------------|---------|
@@ -489,7 +495,7 @@ interpret as either:
 | `### @before = f:fn` | Separator | Separator | Hook directive |
 | `{{x.response.body.$.y}}` | Unresolved variable (warning) | Unresolved variable (warning) | Chaining reference |
 
-### 10.3 What Must Never Happen
+### 11.3 What Must Never Happen
 
 - A `.http` file produced by probeflow must **never** produce a parse error in
   VS Code REST Client or JetBrains HTTP Client.

@@ -59,6 +59,8 @@ def _extract_actual_value(assertion: Assertion, response: Response, duration_ms:
 
     if assertion.target == AssertionTarget.BODY:
         if not assertion.path or assertion.path == "$":
+            if response.parsed_body is not None:
+                return response.parsed_body
             return response.body
 
         if response.parsed_body is None:
@@ -177,6 +179,7 @@ def _compare_values(assertion: Assertion, actual: Any) -> None:
             "boolean": lambda x: isinstance(x, bool),
             "object": lambda x: isinstance(x, dict),
             "array": lambda x: isinstance(x, list),
+            "null": lambda x: x is None,
         }
         checker = type_checks.get(str(expected))
         if checker is None:

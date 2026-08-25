@@ -61,10 +61,13 @@ probeflow run requests.http --env dev        # Use .env.dev for variable substit
 probeflow run requests.http --headers        # Show response headers
 probeflow run requests.http --timeout 60     # Set timeout in seconds (default: 30)
 probeflow run requests.http --quiet          # Suppress output, show errors only
+probeflow run requests.http --check-assertions # Evaluate assertions after each request
 ```
 
 Response chaining works in `run` too — a named request's response is available
 as `{{name.response.body.$.field}}` in subsequent requests within the same file.
+Use `--check-assertions` to evaluate assertions during development (exit code 1
+on failure). For CI-enforced assertions, use `test`.
 
 ### `probeflow test`
 
@@ -80,6 +83,9 @@ probeflow test tests/api.http --json results.json --junit-xml results.xml
 ### `probeflow validate`
 
 Check a `.http` file for syntax errors without executing any requests.
+Request names (`### @name = ...`) must be unique within a file. Duplicate names
+produce an error. In `test` mode, unresolved variables (variables not found in
+`.env` files, system environment, or response chains) are treated as errors.
 
 ```bash
 probeflow validate requests.http
@@ -295,7 +301,9 @@ hasn't run yet, or one that failed, is a hard error with a clear message.
 
 ### .env Files
 
-Place a `.env` file (or `.env.<name>`) next to your `.http` file:
+Place a `.env` file (or `.env.<name>`) next to your `.http` file, or in any
+parent directory. ProbeFlow searches upward from the `.http` file's directory
+to find the nearest `.env` file:
 
 ```env
 # .env.dev

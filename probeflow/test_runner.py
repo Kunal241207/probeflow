@@ -9,7 +9,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from probeflow.client import OAuth2TokenProvider, Response, execute_request
-from probeflow.environment import VariableResolutionError, resolve_request
+from probeflow.environment import (
+    EnvironmentNotFoundError,
+    VariableResolutionError,
+    find_unresolved_variables,
+    load_environment,
+    resolve_request,
+)
 from probeflow.evaluator import AssertionFailure, evaluate_assertion
 from probeflow.models import ParseError, Request
 from probeflow.parser import parse_file
@@ -73,7 +79,30 @@ def run_test_suite(
     base_dir: Path | None = None,
 ) -> list[RequestTestResult]:
     """Run requests in declaration order and evaluate their assertions."""
-    results: list[RequestTestResult] = []
+    # Check for duplicate request names
+    seen_names: set[str] = set()
+    for request in requests:
+        if request.name:
+            if request.name in seen_names:
+                results: list[RequestTestResult] = []
+                results.append(
+                    RequestTestResult(
+                        index=0,
+                        name="duplicate-name-check",
+                        url=source or "unknown",
+                        passed=False,
+                        source=source,
+                        error=(
+                            f"Duplicate request name: '{request.name}'. "
+                            "Request names must be unique within a file "
+                            "for response chaining."
+                        ),
+                    )
+                )
+                return results
+            seen_names.add(request.name)
+
+    results = []
     responses: dict[str, Response] = {}
     token_provider = OAuth2TokenProvider()
 
@@ -98,6 +127,49 @@ def run_test_suite(
         try:
             resolved = resolve_request(request, variables, responses)
             result.url = resolved.url
+
+            # Check for unresolved variables in the resolved request
+            unresolved: list[str] = []
+            unresolved.extend(find_unresolved_variables(resolved.url, variables, responses))
+            for header in resolved.headers:
+                unresolved.extend(find_unresolved_variables(header.name, variables, responses))
+                unresolved.extend(find_unresolved_variables(header.value, variables, responses))
+            if resolved.body:
+                unresolved.extend(
+                    find_unresolved_variables(resolved.body.content, variables, responses)
+                )
+            if resolved.oauth2:
+                unresolved.extend(
+                    find_unresolved_variables(resolved.oauth2.token_url, variables, responses)
+                )
+                unresolved.extend(
+                    find_unresolved_variables(resolved.oauth2.client_id, variables, responses)
+                )
+                unresolved.extend(
+                    find_unresolved_variables(resolved.oauth2.client_secret, variables, responses)
+                )
+                for scope in resolved.oauth2.scopes:
+                    unresolved.extend(find_unresolved_variables(scope, variables, responses))
+            for part in resolved.multipart:
+                unresolved.extend(find_unresolved_variables(part.name, variables, responses))
+                if part.value:
+                    unresolved.extend(find_unresolved_variables(part.value, variables, responses))
+                if part.file_path:
+                    unresolved.extend(
+                        find_unresolved_variables(part.file_path, variables, responses)
+                    )
+                if part.content_type:
+                    unresolved.extend(
+                        find_unresolved_variables(part.content_type, variables, responses)
+                    )
+
+            if unresolved:
+                unique_unresolved = sorted(set(unresolved))
+                vars_str = ", ".join("{{" + v + "}}" for v in unique_unresolved)
+                result.error = f"Unresolved variables: {vars_str}"
+                results.append(result)
+                continue
+
             response = execute_request(
                 resolved,
                 timeout=timeout,
@@ -176,8 +248,6 @@ def run_test_target(
     timeout: float = 30.0,
 ) -> tuple[list[RequestTestResult], int]:
     """Run a file or directory collection, keeping environments and chains file-scoped."""
-    from probeflow.environment import load_environment
-
     files = discover_http_files(target)
     if not files:
         return (
@@ -225,7 +295,21 @@ def run_test_target(
             )
             continue
 
-        environment = load_environment(path.parent, env_name or request_file.environment_name)
+        try:
+            environment = load_environment(path.parent, env_name or request_file.environment_name)
+        except EnvironmentNotFoundError as exc:
+            results.append(
+                RequestTestResult(
+                    index=0,
+                    name="environment",
+                    url=str(path),
+                    passed=False,
+                    source=source,
+                    error=str(exc),
+                )
+            )
+            continue
+
         variables = environment.variables if environment else {}
         results.extend(
             run_test_suite(

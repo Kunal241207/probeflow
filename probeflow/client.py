@@ -166,6 +166,8 @@ def execute_request(
     body: str | bytes | None = None
     multipart_files: list[tuple[str, tuple[str | None, str | bytes, str | None]]] | None = None
     if request.multipart:
+        if request.body:
+            raise ValueError("Multipart requests cannot also set a request body")
         if any(name.lower() == "content-type" for name in headers):
             raise ValueError("Multipart requests cannot set Content-Type explicitly")
         multipart_files = []

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import difflib
 import re
 from pathlib import Path
 
 import typer
 
 from probeflow import __spec_version__, __version__
-from probeflow.client import OAuth2TokenProvider, execute_request
+from probeflow.client import OAuth2TokenProvider, Response, execute_request
 from probeflow.environment import load_environment, resolve_request
+from probeflow.evaluator import AssertionFailure, evaluate_assertion
 from probeflow.formatter import (
     configure_output,
     make_console,
@@ -85,6 +87,11 @@ def run(
         "-q",
         help="Suppress output, only show errors.",
     ),
+    check_assertions: bool = typer.Option(
+        False,
+        "--check-assertions",
+        help="Evaluate assertions after each request.",
+    ),
 ) -> None:
     """Execute one or more HTTP requests from a .http file."""
     try:
@@ -119,7 +126,8 @@ def run(
         requests_to_run = request_file.requests
 
     token_provider = OAuth2TokenProvider()
-    responses: dict = {}
+    responses: dict[str, Response] = {}
+    any_failed = False
     for request in requests_to_run:
         try:
             resolved = resolve_request(request, variables, responses)
@@ -146,8 +154,38 @@ def run(
             print_error(f"Request failed: {e}")
             raise typer.Exit(code=1)
 
-        if request.name:
+        assertions_passed = True
+        if check_assertions and request.assertions:
+            for assertion in request.assertions.assertions:
+                try:
+                    evaluate_assertion(assertion, response, response.elapsed_ms)
+                    if not quiet:
+                        make_console().print(f"  [green]✓[/] {assertion.raw_line}")
+                except AssertionFailure as e:
+                    assertions_passed = False
+                    any_failed = True
+                    make_console(stderr=True).print(f"  [red]✗[/] {e.message}")
+                    if not quiet:
+                        expected_lines = (
+                            str(e.expected).splitlines() if e.expected is not None else [""]
+                        )
+                        actual_lines = str(e.actual).splitlines() if e.actual is not None else [""]
+                        diff = "\n".join(
+                            difflib.unified_diff(
+                                expected_lines,
+                                actual_lines,
+                                fromfile="expected",
+                                tofile="actual",
+                                lineterm="",
+                            )
+                        )
+                        make_console(stderr=True).print(f"    {diff}")
+
+        if request.name and (not check_assertions or assertions_passed):
             responses[request.name] = response
+
+    if check_assertions and any_failed:
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -180,25 +218,34 @@ def validate(
         all_variables = environment.variables
 
     unresolved: list[str] = []
-    var_pattern = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+    var_pattern = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
 
-    for request in request_file.requests:
-        for match in var_pattern.finditer(request.url):
+    def collect_unresolved(text: str | None) -> None:
+        if not text:
+            return
+        for match in var_pattern.finditer(text):
             var_name = match.group(1)
             if var_name not in all_variables:
                 unresolved.append(var_name)
 
+    for request in request_file.requests:
+        collect_unresolved(request.url)
         for header in request.headers:
-            for match in var_pattern.finditer(header.value):
-                var_name = match.group(1)
-                if var_name not in all_variables:
-                    unresolved.append(var_name)
-
+            collect_unresolved(header.name)
+            collect_unresolved(header.value)
         if request.body:
-            for match in var_pattern.finditer(request.body.content):
-                var_name = match.group(1)
-                if var_name not in all_variables:
-                    unresolved.append(var_name)
+            collect_unresolved(request.body.content)
+        if request.oauth2:
+            collect_unresolved(request.oauth2.token_url)
+            collect_unresolved(request.oauth2.client_id)
+            collect_unresolved(request.oauth2.client_secret)
+            for scope in request.oauth2.scopes:
+                collect_unresolved(scope)
+        for part in request.multipart:
+            collect_unresolved(part.name)
+            collect_unresolved(part.value)
+            collect_unresolved(part.file_path)
+            collect_unresolved(part.content_type)
 
     console = make_console()
     console.print(f"[green]✓[/] {file} is valid")

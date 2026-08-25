@@ -139,7 +139,7 @@ _ASSERTION_STATUS_RE = re.compile(
 
 _ASSERTION_BODY_RE = re.compile(
     r"^body\.\$(\.[^\s]+)?\s+"
-    r"(==|!=|<|>|<=|>=|contains|matches|exists|not\s+exists|is|in)\s*"
+    r"(==|!=|<=|>=|<|>|contains|matches|exists|not\s+exists|is|in)\s*"
     r"(.*?)$"
 )
 
@@ -571,6 +571,14 @@ class _Parser:
                     continue
 
             break
+
+        if not assertions:
+            raise ParseError(
+                "Empty @assert block: at least one assertion is required",
+                line=header_tok.line,
+                column=header_tok.col,
+                filename=self._filename,
+            )
 
         return AssertBlock(
             assertions=assertions,

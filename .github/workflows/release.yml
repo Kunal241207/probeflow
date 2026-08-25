@@ -40,5 +40,27 @@ jobs:
         run: python -m pip install --upgrade build
       - name: Build sdist and wheel
         run: python -m build
+      - name: Verify tag matches package version
+        run: |
+          python - <<'PY'
+          import email
+          import glob
+          import os
+          import zipfile
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected = tag[1:] if tag.startswith("v") else tag
+          wheels = glob.glob("dist/*.whl")
+          if not wheels:
+              raise SystemExit("No wheel found in dist/; cannot verify package version")
+          with zipfile.ZipFile(wheels[0]) as zf:
+              meta_name = next(n for n in zf.namelist() if n.endswith(".dist-info/METADATA"))
+              version = email.message_from_bytes(zf.read(meta_name))["Version"]
+          if version != expected:
+              raise SystemExit(
+                  f"Tag version {expected!r} does not match built package metadata version {version!r}"
+              )
+          print(f"Tag {tag} matches package version {version}")
+          PY
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

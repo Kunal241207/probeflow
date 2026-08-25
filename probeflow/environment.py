@@ -90,15 +90,23 @@ def find_env_file(
     directory: Path,
     env_name: str | None = None,
 ) -> Path | None:
-    if env_name:
-        specific = directory / _ENV_FILE_PATTERN.format(env_name)
-        if specific.exists():
-            return specific
+    """Search for .env file in directory and all parent directories."""
+    current = directory.resolve()
+    while True:
+        if env_name:
+            specific = current / _ENV_FILE_PATTERN.format(env_name)
+            if specific.exists():
+                return specific
 
-    for default in _DEFAULT_ENV_FILES:
-        candidate = directory / default
-        if candidate.exists():
-            return candidate
+        for default in _DEFAULT_ENV_FILES:
+            candidate = current / default
+            if candidate.exists():
+                return candidate
+
+        parent = current.parent
+        if parent == current:  # Reached filesystem root
+            break
+        current = parent
 
     return None
 
@@ -172,6 +180,30 @@ def _apply_api_key_query(url: str, key_name: str, key_value: str) -> str:
     existing[key_name] = [key_value]
     new_query = urlencode({k: v[0] for k, v in existing.items()})
     return urlunparse(parsed._replace(query=new_query))
+
+
+def find_unresolved_variables(
+    text: str,
+    variables: dict[str, str],
+    responses: dict | None = None,
+) -> list[str]:
+    """Find all unresolved variable references in a string."""
+    unresolved: list[str] = []
+
+    def _check(match: re.Match[str]) -> str:
+        var_name = match.group(1)
+        if ".response." in var_name:
+            # Response references are validated at resolution time
+            return match.group(0)
+        if var_name in variables:
+            return match.group(0)
+        if os.environ.get(var_name) is not None:
+            return match.group(0)
+        unresolved.append(var_name)
+        return match.group(0)
+
+    _VARIABLE_PATTERN.sub(_check, text)
+    return unresolved
 
 
 def resolve_request(

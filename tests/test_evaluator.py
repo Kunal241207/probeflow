@@ -31,6 +31,20 @@ def test_extract_jsonpath():
     assert _extract_jsonpath(data, "$.user.profile.name") == "Alice"
     assert _extract_jsonpath(data, "$.tags") == []
 
+    # Nested array access: array index followed by object key
+    data2 = {"items": [{"name": "first"}, {"name": "second"}]}
+    assert _extract_jsonpath(data2, "$.items[0].name") == "first"
+    assert _extract_jsonpath(data2, "$.items[1].name") == "second"
+
+    # Multiple array indices
+    data3 = {"matrix": [[1, 2], [3, 4]]}
+    assert _extract_jsonpath(data3, "$.matrix[0][1]") == 2
+    assert _extract_jsonpath(data3, "$.matrix[1][0]") == 3
+
+    # Deeply nested
+    data4 = {"users": [{"profile": {"name": "Alice"}}, {"profile": {"name": "Bob"}}]}
+    assert _extract_jsonpath(data4, "$.users[0].profile.name") == "Alice"
+
     # Invalid paths
     assert _extract_jsonpath(data, "user.id") is None
     assert _extract_jsonpath(data, "$.unknown") is None
@@ -152,6 +166,62 @@ def test_body_jsonpath_assertion():
             resp,
             10,
         )
+
+
+def test_body_root_assertion_uses_parsed_json():
+    """Root body ($) should compare against parsed JSON when available."""
+    resp = make_response(json_data={"name": "Alice", "tags": ["a", "b"]})
+
+    # Compare root against dict
+    evaluate_assertion(
+        Assertion(
+            target=AssertionTarget.BODY,
+            path="$",
+            operator=AssertionOperator.EQ,
+            expected={"name": "Alice", "tags": ["a", "b"]},
+        ),
+        resp,
+        10,
+    )
+
+    # Compare root against list
+    resp_list = make_response(json_data=[1, 2, 3])
+    evaluate_assertion(
+        Assertion(
+            target=AssertionTarget.BODY,
+            path="$",
+            operator=AssertionOperator.EQ,
+            expected=[1, 2, 3],
+        ),
+        resp_list,
+        10,
+    )
+
+    # Fail: mismatch
+    with pytest.raises(AssertionFailure):
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.EQ,
+                expected={"name": "Bob"},
+            ),
+            resp,
+            10,
+        )
+
+    # Non-JSON response: falls back to raw body string
+    resp_text = make_response(json_data=None, text='{"name": "Alice"}')
+    evaluate_assertion(
+        Assertion(
+            target=AssertionTarget.BODY,
+            path="$",
+            operator=AssertionOperator.EQ,
+            expected='{"name": "Alice"}',
+        ),
+        resp_text,
+        10,
+    )
 
 
 def test_operators():
@@ -532,6 +602,36 @@ class TestIsTypeOperator:
                     path="$.key",
                     operator=AssertionOperator.EXISTS,
                     raw_line="body.$.key exists",
+                ),
+                resp,
+                10,
+            )
+
+
+class TestIsTypeNull:
+    """IS type-check operator with null values."""
+
+    def test_is_null_passes(self):
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$.null_val",
+                operator=AssertionOperator.IS,
+                expected="null",
+            ),
+            make_response(json_data={"null_val": None}),
+            10,
+        )
+
+    def test_is_null_fails_for_non_null(self):
+        resp = make_response(json_data={"val": 10})
+        with pytest.raises(AssertionFailure):
+            evaluate_assertion(
+                Assertion(
+                    target=AssertionTarget.BODY,
+                    path="$.val",
+                    operator=AssertionOperator.IS,
+                    expected="null",
                 ),
                 resp,
                 10,

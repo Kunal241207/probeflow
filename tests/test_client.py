@@ -172,6 +172,32 @@ class TestExecuteRequest:
         assert api_route.calls[1].request.headers["Authorization"] == "Bearer second"
 
     @respx.mock
+    def test_oauth2_token_request_sends_form_urlencoded(self):
+        """RFC 6749 requires application/x-www-form-urlencoded for client-credentials."""
+        token_route = respx.post("https://auth.example.com/token").respond(
+            json={"access_token": "test", "token_type": "Bearer", "expires_in": 3600}
+        )
+        _api_route = respx.get("https://api.example.com/me").respond(status_code=200)
+        request = Request(
+            method=HTTPMethod.GET,
+            url="https://api.example.com/me",
+            oauth2=OAuth2ClientCredentials(
+                token_url="https://auth.example.com/token",
+                client_id="client",
+                client_secret="secret",
+                scopes=["read", "write"],
+            ),
+        )
+        execute_request(request)
+
+        sent_request = token_route.calls[0].request
+        assert sent_request.headers["Content-Type"] == "application/x-www-form-urlencoded"
+        # Verify the body contains the expected form fields
+        body = sent_request.content.decode()
+        assert "grant_type=client_credentials" in body
+        assert "scope=read+write" in body
+
+    @respx.mock
     def test_multipart_upload_uses_a_generated_boundary(self, tmp_path):
         upload = tmp_path / "avatar.txt"
         upload.write_text("hello upload", encoding="utf-8")
@@ -193,6 +219,26 @@ class TestExecuteRequest:
         assert b"Ada" in sent.content
         assert b'filename="avatar.txt"' in sent.content
         assert b"hello upload" in sent.content
+
+    def test_multipart_rejects_explicit_content_type(self):
+        request = Request(
+            method=HTTPMethod.POST,
+            url="https://api.example.com/avatar",
+            headers=[Header(name="Content-Type", value="multipart/form-data")],
+            multipart=[MultipartPart(name="display_name", value="Ada")],
+        )
+        with pytest.raises(ValueError, match="cannot set Content-Type explicitly"):
+            execute_request(request)
+
+    def test_multipart_and_body_is_rejected(self):
+        request = Request(
+            method=HTTPMethod.POST,
+            url="https://api.example.com/avatar",
+            body=RequestBody(content='{"name": "Ada"}', content_type="application/json"),
+            multipart=[MultipartPart(name="display_name", value="Ada")],
+        )
+        with pytest.raises(ValueError, match="cannot also set a request body"):
+            execute_request(request)
 
     def test_multipart_missing_file_is_an_error(self, tmp_path):
         request = Request(

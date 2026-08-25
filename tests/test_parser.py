@@ -268,6 +268,14 @@ class TestErrorHandling:
         with pytest.raises(ParseError, match="Invalid assertion syntax"):
             parse_string("GET https://httpbin.org/get\n\n### @assert\n# unknown_prop == 123")
 
+    def test_empty_assert_block(self):
+        with pytest.raises(ParseError, match="Empty @assert block"):
+            parse_string("GET https://httpbin.org/get\n\n### @assert\n")
+
+    def test_assert_block_with_only_invalid_assertion(self):
+        with pytest.raises(ParseError, match="Invalid assertion syntax"):
+            parse_string("GET https://httpbin.org/get\n\n### @assert\n# just a comment\n")
+
     def test_invalid_duration_assertion(self):
         with pytest.raises(ParseError, match="Invalid assertion"):
             parse_string("GET https://a.com\n\n### @assert\n# duration = 100")
