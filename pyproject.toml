@@ -7,7 +7,7 @@ name = "probeflow"
 version = "0.2.0"
 description = "Pytest for HTTP APIs using Git-diffable .http request files"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.11"
 authors = [
     {name = "probeflow"},
@@ -19,6 +19,11 @@ dependencies = [
     "pydantic>=2.6.0,<3.0",
     "python-dotenv>=1.0.0,<2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Kunal241207/probeflow"
+Repository = "https://github.com/Kunal241207/probeflow"
+Issues = "https://github.com/Kunal241207/probeflow/issues"
 
 [project.scripts]
 probeflow = "probeflow.cli:app_entry"

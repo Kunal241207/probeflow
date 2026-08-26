@@ -5,7 +5,9 @@ from probeflow.evaluator import AssertionFailure, _extract_jsonpath, evaluate_as
 from probeflow.models import Assertion, AssertionOperator, AssertionTarget
 
 
-def make_response(status_code=200, json_data=None, headers=None, text=""):
+def make_response(status_code=200, json_data=None, headers=None, text="", json_parsed=None):
+    if json_parsed is None:
+        json_parsed = json_data is not None
     return Response(
         status_code=status_code,
         status_text="OK",
@@ -14,7 +16,8 @@ def make_response(status_code=200, json_data=None, headers=None, text=""):
         headers=headers or {},
         body=text,
         parsed_body=json_data,
-        content_type="application/json" if json_data else "text/plain",
+        json_parsed=json_parsed,
+        content_type="application/json" if json_parsed else "text/plain",
         url="https://example.com",
     )
 
@@ -30,6 +33,20 @@ def test_extract_jsonpath():
     assert _extract_jsonpath(data, "$.user.roles[1]") == "user"
     assert _extract_jsonpath(data, "$.user.profile.name") == "Alice"
     assert _extract_jsonpath(data, "$.tags") == []
+
+    # Nested array access: array index followed by object key
+    data2 = {"items": [{"name": "first"}, {"name": "second"}]}
+    assert _extract_jsonpath(data2, "$.items[0].name") == "first"
+    assert _extract_jsonpath(data2, "$.items[1].name") == "second"
+
+    # Multiple array indices
+    data3 = {"matrix": [[1, 2], [3, 4]]}
+    assert _extract_jsonpath(data3, "$.matrix[0][1]") == 2
+    assert _extract_jsonpath(data3, "$.matrix[1][0]") == 3
+
+    # Deeply nested
+    data4 = {"users": [{"profile": {"name": "Alice"}}, {"profile": {"name": "Bob"}}]}
+    assert _extract_jsonpath(data4, "$.users[0].profile.name") == "Alice"
 
     # Invalid paths
     assert _extract_jsonpath(data, "user.id") is None
@@ -152,6 +169,62 @@ def test_body_jsonpath_assertion():
             resp,
             10,
         )
+
+
+def test_body_root_assertion_uses_parsed_json():
+    """Root body ($) should compare against parsed JSON when available."""
+    resp = make_response(json_data={"name": "Alice", "tags": ["a", "b"]})
+
+    # Compare root against dict
+    evaluate_assertion(
+        Assertion(
+            target=AssertionTarget.BODY,
+            path="$",
+            operator=AssertionOperator.EQ,
+            expected={"name": "Alice", "tags": ["a", "b"]},
+        ),
+        resp,
+        10,
+    )
+
+    # Compare root against list
+    resp_list = make_response(json_data=[1, 2, 3])
+    evaluate_assertion(
+        Assertion(
+            target=AssertionTarget.BODY,
+            path="$",
+            operator=AssertionOperator.EQ,
+            expected=[1, 2, 3],
+        ),
+        resp_list,
+        10,
+    )
+
+    # Fail: mismatch
+    with pytest.raises(AssertionFailure):
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.EQ,
+                expected={"name": "Bob"},
+            ),
+            resp,
+            10,
+        )
+
+    # Non-JSON response: falls back to raw body string
+    resp_text = make_response(json_data=None, text='{"name": "Alice"}')
+    evaluate_assertion(
+        Assertion(
+            target=AssertionTarget.BODY,
+            path="$",
+            operator=AssertionOperator.EQ,
+            expected='{"name": "Alice"}',
+        ),
+        resp_text,
+        10,
+    )
 
 
 def test_operators():
@@ -536,3 +609,103 @@ class TestIsTypeOperator:
                 resp,
                 10,
             )
+
+
+class TestIsTypeNull:
+    """IS type-check operator with null values."""
+
+    def test_is_null_passes(self):
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$.null_val",
+                operator=AssertionOperator.IS,
+                expected="null",
+            ),
+            make_response(json_data={"null_val": None}),
+            10,
+        )
+
+    def test_is_null_fails_for_non_null(self):
+        resp = make_response(json_data={"val": 10})
+        with pytest.raises(AssertionFailure):
+            evaluate_assertion(
+                Assertion(
+                    target=AssertionTarget.BODY,
+                    path="$.val",
+                    operator=AssertionOperator.IS,
+                    expected="null",
+                ),
+                resp,
+                10,
+            )
+
+
+class TestRootBodyNull:
+    """Root BODY ($) with JSON null body distinguishes null from parse failure."""
+
+    def test_root_body_is_null_with_json_null(self):
+        resp = make_response(
+            json_data=None,
+            json_parsed=True,
+            text="null",
+            headers={"content-type": "application/json"},
+        )
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.IS,
+                expected="null",
+            ),
+            resp,
+            10,
+        )
+
+    def test_root_body_eq_null_with_json_null(self):
+        """body.$ == 'null' matches parsed JSON null via null-coercion in ==."""
+        resp = make_response(
+            json_data=None,
+            json_parsed=True,
+            text="null",
+            headers={"content-type": "application/json"},
+        )
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.EQ,
+                expected="null",
+            ),
+            resp,
+            10,
+        )
+
+    def test_root_body_raw_on_parse_failure(self):
+        resp = make_response(
+            json_data=None,
+            json_parsed=False,
+            text="not json",
+        )
+        assert resp.body == "not json"
+
+    def test_extract_actual_returns_none_for_json_null(self):
+        from probeflow.evaluator import _extract_actual_value
+
+        resp = make_response(
+            json_data=None,
+            json_parsed=True,
+            text="null",
+            headers={"content-type": "application/json"},
+        )
+        result = _extract_actual_value(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.IS,
+                expected="null",
+            ),
+            resp,
+            10,
+        )
+        assert result is None

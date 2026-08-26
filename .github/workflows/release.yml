@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
+      - name: Install dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Run test suite
+        run: python -m pytest
+
+  build-and-publish:
+    name: Build package and publish to PyPI
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/probeflow
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tool
+        run: python -m pip install --upgrade build
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Verify tag matches package version
+        run: |
+          python - <<'PY'
+          import email
+          import glob
+          import os
+          import zipfile
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          expected = tag[1:] if tag.startswith("v") else tag
+          wheels = glob.glob("dist/*.whl")
+          if not wheels:
+              raise SystemExit("No wheel found in dist/; cannot verify package version")
+          with zipfile.ZipFile(wheels[0]) as zf:
+              meta_name = next(n for n in zf.namelist() if n.endswith(".dist-info/METADATA"))
+              version = email.message_from_bytes(zf.read(meta_name))["Version"]
+          if version != expected:
+              raise SystemExit(
+                  f"Tag version {expected!r} does not match built package metadata version {version!r}"
+              )
+          print(f"Tag {tag} matches package version {version}")
+          PY
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

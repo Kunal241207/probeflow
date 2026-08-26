@@ -97,6 +97,9 @@ request_block   = { pre_request_meta }
 pre_request_meta  = comment_line
                   | name_directive
                   | env_directive
+                  | oauth2_directive
+                  | form_directive
+                  | file_directive
                   | before_hook_directive
                   | blank_line ;
 
@@ -215,6 +218,10 @@ env_directive   = { ws } , "###" , { ws } , "@env"
 Selects an environment file (`.env.<name>`) for variable resolution.
 Should appear at the top of the file (before any request block).
 
+The environment file is searched for starting at the `.http` file's directory
+and walking up the directory tree until found. This allows a single `.env` file
+at the project root to serve multiple `.http` files in subdirectories.
+
 **Example:**
 ```http
 ### @env = dev
@@ -236,8 +243,9 @@ file_path       = (* relative path to a .py file, no spaces *) ;
 ```
 
 Hook references point to a Python function in a sibling file.
-Hooks are **only executed** when the `--allow-scripts` CLI flag is provided.
-Without this flag, hook directives are parsed and validated but not executed.
+Hooks are **parsed and validated** but **not executed** in the current implementation.
+A future `--allow-scripts` CLI flag may be added to enable execution as an explicit opt-in.
+Without such a flag, hook directives are parsed and validated but not executed.
 
 **Example:**
 ```http
@@ -251,14 +259,51 @@ Content-Type: application/json
 ### @after = hooks.py:verify_signature
 ```
 
-> **Security**: Hooks execute arbitrary Python code. The `--allow-scripts` flag
-> is a security boundary. Files from untrusted sources (e.g., PRs) should never
-> be run with `--allow-scripts` unless the hook code has been reviewed.
+> **Security**: Hooks execute arbitrary Python code. Any future `--allow-scripts` flag
+> would be a security boundary. Files from untrusted sources (e.g., PRs) should never
+> be run with script execution enabled unless the hook code has been reviewed.
 
 **Current implementation status:** the parser validates and preserves hook
-references, but the current test runner refuses hook-bearing files because no
-hook executor is shipped yet. A future executor must keep `--allow-scripts` as
-an explicit opt-in and must never run hooks by default.
+references, but the test runner refuses to execute hook-bearing files (exit code 1)
+because no hook executor is implemented. Hook execution is a planned feature.
+
+### 6.4 `@oauth2` — Client Credentials
+
+OAuth2 client-credentials authentication is declared per request. Values may
+use normal `{{variable}}` interpolation. Tokens are held only in memory for one
+run and refreshed 30 seconds before their advertised expiry.
+
+```ebnf
+oauth2_directive = { ws } , "###" , { ws } , "@oauth2"
+                 , { ws } , "=" , { ws } , "client-credentials"
+                 , ws , token_url , ws , client_id , ws , client_secret
+                 , { ws , scope } , newline ;
+```
+
+```http
+### @oauth2 = client-credentials {{oauth_token_url}} {{client_id}} {{client_secret}} read write
+GET https://api.example.com/me
+```
+
+### 6.5 `@form` / `@file` — Multipart Uploads
+
+`@form` adds a text field and `@file` adds a file part. Paths are relative to
+the `.http` file. Multipart requests must not set `Content-Type`; probeflow
+uses the HTTP client's generated boundary.
+
+```ebnf
+form_directive = { ws } , "###" , { ws } , "@form"
+               , { ws } , "=" , { ws } , identifier , "=" , rest_of_line , newline ;
+file_directive = { ws } , "###" , { ws } , "@file"
+               , { ws } , "=" , { ws } , identifier , "=" , file_path
+               , [ ";type=" , media_type ] , newline ;
+```
+
+```http
+### @form = title=Quarterly report
+### @file = attachment=fixtures/report.pdf;type=application/pdf
+POST https://api.example.com/uploads
+```
 
 ---
 
@@ -369,8 +414,9 @@ response_field  = "body" , "." , jsonpath_expr
 
 ### 8.1 Resolution Rules
 
-1. Chaining references resolve **only within a single run** (one file or one
-   directory run as a suite).
+1. Chaining references resolve **only within one `.http` file**. A directory
+   collection runs files independently, so a named response never leaks across
+   files.
 2. Requests are evaluated in **declaration order** (top-to-bottom in the file).
 3. A reference to a request that **hasn't run yet** is a **hard parse error**
    with a clear message — not a silent empty string.
@@ -408,16 +454,29 @@ When resolving a `{{name}}` reference:
 1. **Chaining references**: If `name` matches `<request_name>.response.*`, resolve
    from the named request's captured response.
 2. **Inline variables**: `### @key = value` directives within the same request block.
-3. **Environment file**: Variables from `.env.<name>` or `.env` file.
+3. **Environment file**: Variables from `.env.<name>` or `.env` file, searched
+   from the `.http` file's directory upward through parent directories.
 4. **System environment**: `os.environ` lookup.
-5. **Unresolved**: Left as-is (`{{name}}`) — produces a warning, not an error,
-   unless in `test` mode where unresolved variables are an error.
+5. **Unresolved**: Left as-is (`{{name}}`) — produces a warning in `run` mode,
+   but is an error in `test` mode.
 
 ---
 
-## 10. Cross-Tool Compatibility
+## 10. Collections
 
-### 10.1 Design Principle
+`probeflow test` accepts either a `.http` file or a directory. A directory is
+searched recursively for `.http` files in lexical path order. Each file loads
+its own environment (searching upward from the file's directory for `.env` files)
+and has its own response-chain scope. Results are aggregated into one pass/fail
+summary, and any file failure makes the command exit with 1.
+
+```text
+probeflow test requests/
+```
+
+## 11. Cross-Tool Compatibility
+
+### 11.1 Design Principle
 
 All probeflow-specific syntax is encoded using constructs that non-probeflow tools
 interpret as either:
@@ -426,7 +485,7 @@ interpret as either:
 - **Separators** (`###` lines) — treated as request block delimiters
 - **Template variables** (`{{...}}`) — treated as unresolved variables (warning, not error)
 
-### 10.2 Compatibility Matrix
+### 11.2 Compatibility Matrix
 
 | Construct | VS Code REST Client | JetBrains HTTP Client | probeflow |
 |-----------|--------------------|-----------------------|---------|
@@ -436,16 +495,23 @@ interpret as either:
 | `### @before = f:fn` | Separator | Separator | Hook directive |
 | `{{x.response.body.$.y}}` | Unresolved variable (warning) | Unresolved variable (warning) | Chaining reference |
 
-### 10.3 What Must Never Happen
+### 11.3 What Must Never Happen
 
 - A `.http` file produced by probeflow must **never** produce a parse error in
   VS Code REST Client or JetBrains HTTP Client.
 - probeflow directives must **never** be mistaken for request content (headers,
   body, URL) by other tools.
 
+## 12. CI-Safe Output
+
+The CLI writes ANSI color only to interactive terminals. It disables color when
+either `--no-color` is passed or `NO_COLOR` is present with a non-empty value;
+an empty `NO_COLOR` value does not disable color. This follows
+<https://no-color.org/>. CI workflows should use `NO_COLOR=1` for stable logs.
+
 ---
 
-## 11. Error Reporting
+## 13. Error Reporting
 
 All parse errors must include:
 
@@ -456,7 +522,7 @@ All parse errors must include:
 - **No bare stack traces** — all Python exceptions must be caught and converted
   to structured `ParseError` objects
 
-### 11.1 Error Message Format
+### 13.1 Error Message Format
 
 ```
 <filename>:<line>:<column>: error: <message>
@@ -470,7 +536,7 @@ requests.http:12:3: error: Invalid assertion syntax: 'status = 200'. Did you mea
 
 ---
 
-## 12. Versioning
+## 14. Versioning
 
 This specification is versioned. The version number appears at the top of this document.
 

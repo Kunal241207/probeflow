@@ -42,9 +42,7 @@
       "after_hook": {
         "file_path": "hooks.py",
         "function_name": "verify_signature"
-      },
-      "auth": null,
-      "multipart": []
+      }
     }
   ],
   "environment_name": null
