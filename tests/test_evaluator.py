@@ -5,7 +5,9 @@ from probeflow.evaluator import AssertionFailure, _extract_jsonpath, evaluate_as
 from probeflow.models import Assertion, AssertionOperator, AssertionTarget
 
 
-def make_response(status_code=200, json_data=None, headers=None, text=""):
+def make_response(status_code=200, json_data=None, headers=None, text="", json_parsed=None):
+    if json_parsed is None:
+        json_parsed = json_data is not None
     return Response(
         status_code=status_code,
         status_text="OK",
@@ -14,7 +16,8 @@ def make_response(status_code=200, json_data=None, headers=None, text=""):
         headers=headers or {},
         body=text,
         parsed_body=json_data,
-        content_type="application/json" if json_data else "text/plain",
+        json_parsed=json_parsed,
+        content_type="application/json" if json_parsed else "text/plain",
         url="https://example.com",
     )
 
@@ -636,3 +639,73 @@ class TestIsTypeNull:
                 resp,
                 10,
             )
+
+
+class TestRootBodyNull:
+    """Root BODY ($) with JSON null body distinguishes null from parse failure."""
+
+    def test_root_body_is_null_with_json_null(self):
+        resp = make_response(
+            json_data=None,
+            json_parsed=True,
+            text="null",
+            headers={"content-type": "application/json"},
+        )
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.IS,
+                expected="null",
+            ),
+            resp,
+            10,
+        )
+
+    def test_root_body_eq_null_with_json_null(self):
+        """body.$ == 'null' matches parsed JSON null via null-coercion in ==."""
+        resp = make_response(
+            json_data=None,
+            json_parsed=True,
+            text="null",
+            headers={"content-type": "application/json"},
+        )
+        evaluate_assertion(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.EQ,
+                expected="null",
+            ),
+            resp,
+            10,
+        )
+
+    def test_root_body_raw_on_parse_failure(self):
+        resp = make_response(
+            json_data=None,
+            json_parsed=False,
+            text="not json",
+        )
+        assert resp.body == "not json"
+
+    def test_extract_actual_returns_none_for_json_null(self):
+        from probeflow.evaluator import _extract_actual_value
+
+        resp = make_response(
+            json_data=None,
+            json_parsed=True,
+            text="null",
+            headers={"content-type": "application/json"},
+        )
+        result = _extract_actual_value(
+            Assertion(
+                target=AssertionTarget.BODY,
+                path="$",
+                operator=AssertionOperator.IS,
+                expected="null",
+            ),
+            resp,
+            10,
+        )
+        assert result is None

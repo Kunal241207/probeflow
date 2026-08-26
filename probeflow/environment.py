@@ -62,7 +62,7 @@ def _resolve_response_reference(reference: str, responses: dict) -> str:
 
         value = (
             None
-            if response.parsed_body is None
+            if not response.json_parsed
             else _extract_jsonpath(response.parsed_body, field.removeprefix("body."))
         )
     else:
@@ -90,23 +90,36 @@ def find_env_file(
     directory: Path,
     env_name: str | None = None,
 ) -> Path | None:
-    """Search for .env file in directory and all parent directories."""
+    """Search for .env file in directory and all parent directories.
+
+    Named files (e.g. .env.dev) always take precedence over default files
+    (.env, .env.local) across all ancestor directories.
+    """
     current = directory.resolve()
-    while True:
-        if env_name:
-            specific = current / _ENV_FILE_PATTERN.format(env_name)
+
+    # Pass 1: walk all ancestors looking for the named env file
+    if env_name:
+        search_dir = current
+        while True:
+            specific = search_dir / _ENV_FILE_PATTERN.format(env_name)
             if specific.exists():
                 return specific
+            parent = search_dir.parent
+            if parent == search_dir:
+                break
+            search_dir = parent
 
+    # Pass 2: walk all ancestors looking for default files
+    search_dir = current
+    while True:
         for default in _DEFAULT_ENV_FILES:
-            candidate = current / default
+            candidate = search_dir / default
             if candidate.exists():
                 return candidate
-
-        parent = current.parent
-        if parent == current:  # Reached filesystem root
+        parent = search_dir.parent
+        if parent == search_dir:
             break
-        current = parent
+        search_dir = parent
 
     return None
 

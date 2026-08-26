@@ -269,7 +269,7 @@ def run_test_target(
         source = str(path.relative_to(root)) if target.is_dir() else path.name
         try:
             request_file = parse_file(path)
-        except (ParseError, OSError) as exc:
+        except (ParseError, OSError, UnicodeError) as exc:
             results.append(
                 RequestTestResult(
                     index=0,

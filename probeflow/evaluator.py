@@ -59,11 +59,11 @@ def _extract_actual_value(assertion: Assertion, response: Response, duration_ms:
 
     if assertion.target == AssertionTarget.BODY:
         if not assertion.path or assertion.path == "$":
-            if response.parsed_body is not None:
+            if response.json_parsed:
                 return response.parsed_body
             return response.body
 
-        if response.parsed_body is None:
+        if not response.json_parsed:
             return None
 
         return _extract_jsonpath(response.parsed_body, assertion.path)
@@ -105,7 +105,7 @@ def _compare_values(assertion: Assertion, actual: Any) -> None:
     op = assertion.operator
 
     if op == AssertionOperator.EQ:
-        if actual != expected:
+        if actual != expected and not (actual is None and expected == "null"):
             raise AssertionFailure(f"Expected {expected}, got {actual}", expected, actual)
 
     elif op == AssertionOperator.NE:

@@ -132,6 +132,7 @@ def run(
         try:
             resolved = resolve_request(request, variables, responses)
         except Exception as e:
+            any_failed = True
             print_error(f"Failed to resolve variables for '{request.name or request.url}': {e}")
             continue
 
@@ -184,7 +185,7 @@ def run(
         if request.name and (not check_assertions or assertions_passed):
             responses[request.name] = response
 
-    if check_assertions and any_failed:
+    if any_failed:
         raise typer.Exit(code=1)
 
 

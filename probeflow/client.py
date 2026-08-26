@@ -25,6 +25,7 @@ class Response:
     headers: dict[str, str]
     body: str
     parsed_body: Any = None
+    json_parsed: bool = False
     content_type: str | None = None
     url: str = ""
 
@@ -120,15 +121,20 @@ def _status_text(code: int) -> str:
     return _STATUS_TEXTS.get(code, f"Status {code}")
 
 
-def _try_parse_json(body: str, content_type: str | None) -> Any:
+def _try_parse_json(body: str, content_type: str | None) -> tuple[Any, bool]:
+    """Parse JSON body if content type indicates JSON.
+
+    Returns (parsed_value, success) where success is True when the content type
+    was JSON and parsing succeeded (even if the result is None/JSON null).
+    """
     if content_type and "json" in content_type.lower():
         import json
 
         try:
-            return json.loads(body)
+            return json.loads(body), True
         except (json.JSONDecodeError, ValueError):
             pass
-    return None
+    return None, False
 
 
 def _build_multipart_files(
@@ -226,6 +232,8 @@ def execute_request(
     response_body = response.text
     content_type = response.headers.get("content-type", "")
 
+    parsed_body, json_parsed = _try_parse_json(response_body, content_type)
+
     return Response(
         status_code=response.status_code,
         status_text=_status_text(response.status_code),
@@ -233,7 +241,8 @@ def execute_request(
         size_bytes=len(response.content),
         headers=dict(response.headers),
         body=response_body,
-        parsed_body=_try_parse_json(response_body, content_type),
+        parsed_body=parsed_body,
+        json_parsed=json_parsed,
         content_type=content_type,
         url=str(response.url),
     )

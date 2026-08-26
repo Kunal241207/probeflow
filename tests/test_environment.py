@@ -103,6 +103,15 @@ class TestFindEnvFile:
         default_env.write_text("ENV=default\n")
         assert find_env_file(tmp_path, "staging") == default_env
 
+    def test_named_env_in_parent_wins_over_default_in_child(self, tmp_path):
+        child = tmp_path / "src"
+        child.mkdir()
+        default_env = child / ".env"
+        default_env.write_text("ENV=default\n")
+        named_env = tmp_path / ".env.dev"
+        named_env.write_text("ENV=dev\n")
+        assert find_env_file(child, "dev") == named_env
+
     def test_no_env_file_found(self, tmp_path):
         assert find_env_file(tmp_path) is None
 
@@ -167,6 +176,7 @@ class TestResolveRequest:
             headers={"X-Request-Id": "req-123"},
             body='{"token": "abc123"}',
             parsed_body={"token": "abc123"},
+            json_parsed=True,
         )
         request = Request(
             method=HTTPMethod.GET,

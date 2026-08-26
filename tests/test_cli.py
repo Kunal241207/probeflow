@@ -83,6 +83,14 @@ class TestRunCommand:
         assert result.exit_code == 0
         assert "HTTP/1.1" not in result.stdout
 
+    @respx.mock
+    def test_run_resolve_failure_sets_exit_code_1(self, tmp_path):
+        http_file = tmp_path / "test.http"
+        http_file.write_text("GET https://api.example.com/{{unresolved_var}}\n")
+        respx.get("https://api.example.com/").respond(json=[], status_code=200)
+        result = runner.invoke(app, ["run", str(http_file)])
+        assert result.exit_code == 1
+
 
 class TestTestCommand:
     @respx.mock
