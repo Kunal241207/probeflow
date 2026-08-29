@@ -78,6 +78,16 @@ class TestLoadConfig:
         with pytest.raises(ConfigError, match="timeout"):
             load_config(tmp_path)
 
+    def test_timeout_rejects_nan(self, tmp_path):
+        _write(tmp_path / "probeflow.toml", "[probeflow]\ntimeout = nan\n")
+        with pytest.raises(ConfigError, match="finite"):
+            load_config(tmp_path)
+
+    def test_timeout_rejects_inf(self, tmp_path):
+        _write(tmp_path / "probeflow.toml", "[probeflow]\ntimeout = inf\n")
+        with pytest.raises(ConfigError, match="finite"):
+            load_config(tmp_path)
+
     def test_timeout_below_minimum(self, tmp_path):
         _write(tmp_path / "probeflow.toml", "[probeflow]\ntimeout = 0.5\n")
         with pytest.raises(ConfigError, match="must be >= 1"):

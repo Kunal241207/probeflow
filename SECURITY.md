@@ -2,8 +2,8 @@
 
 ## Supported Versions
 
-probeflow is pre-1.0 software. Security fixes are applied to the **latest
-released version only**; there are no long-term support branches yet.
+probeflow is pre-1.0 software. Security fixes are applied to the **current
+0.2.x release line**; there are no long-term support branches yet.
 
 | Version | Supported          |
 | ------- | ------------------ |

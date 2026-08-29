@@ -7,6 +7,7 @@ See docs/spec.md §15 for the full format and precedence rules.
 
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,8 @@ def _coerce_timeout(section: dict, path: Path) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ConfigError(f"{path}: 'timeout' must be a number, got {type(value).__name__}")
     value = float(value)
+    if not math.isfinite(value):
+        raise ConfigError(f"{path}: 'timeout' must be a finite number, got {value}")
     if value < 1.0:
         raise ConfigError(f"{path}: 'timeout' must be >= 1.0 seconds, got {value}")
     return value
