@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import difflib
-import re
 from pathlib import Path
 
 import typer
 
 from probeflow import __spec_version__, __version__
 from probeflow.client import OAuth2TokenProvider, Response, execute_request
-from probeflow.environment import load_environment, resolve_request
+from probeflow.config import ConfigError, ProbeflowConfig, load_config
+from probeflow.environment import (
+    find_unresolved_variables,
+    load_environment,
+    resolve_request,
+)
 from probeflow.evaluator import AssertionFailure, evaluate_assertion
 from probeflow.formatter import (
     configure_output,
@@ -47,8 +51,44 @@ def main(
     configure_output(no_color=no_color)
 
 
+def _flag_from_cli(ctx: typer.Context, name: str) -> bool:
+    """Return True only if the option was given explicitly on the command line.
+
+    Lets ``probeflow.toml`` supply defaults while an explicit flag always wins.
+    """
+    source = ctx.get_parameter_source(name)
+    return source is not None and source.name == "COMMANDLINE"
+
+
+def _resolve_timeout(ctx: typer.Context, cli_value: float, config: ProbeflowConfig) -> float:
+    """Explicit --timeout > probeflow.toml timeout > built-in default."""
+    if _flag_from_cli(ctx, "timeout"):
+        return cli_value
+    if config.timeout is not None:
+        return config.timeout
+    return cli_value
+
+
+def _resolve_env(ctx: typer.Context, cli_value: str | None, config: ProbeflowConfig) -> str | None:
+    """Explicit --env > probeflow.toml env > built-in (None; file @env applies)."""
+    if _flag_from_cli(ctx, "env_name"):
+        return cli_value
+    if config.default_env is not None:
+        return config.default_env
+    return cli_value
+
+
+def _load_config_or_exit(target: Path) -> ProbeflowConfig:
+    try:
+        return load_config(target)
+    except ConfigError as exc:
+        print_error(str(exc))
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def run(
+    ctx: typer.Context,
     file: Path = typer.Argument(
         ...,
         help="Path to the .http file to execute.",
@@ -104,7 +144,11 @@ def run(
         print_error(f"No requests found in {file}.")
         raise typer.Exit(code=1)
 
-    effective_env = env_name or request_file.environment_name
+    config = _load_config_or_exit(file)
+    resolved_timeout = _resolve_timeout(ctx, timeout, config)
+    resolved_env = _resolve_env(ctx, env_name, config)
+
+    effective_env = resolved_env or request_file.environment_name
     environment = load_environment(file.parent, effective_env)
 
     variables: dict[str, str] = {}
@@ -142,7 +186,7 @@ def run(
         try:
             response = execute_request(
                 resolved,
-                timeout=timeout,
+                timeout=resolved_timeout,
                 token_provider=token_provider,
                 base_dir=file.parent,
             )
@@ -219,15 +263,15 @@ def validate(
         all_variables = environment.variables
 
     unresolved: list[str] = []
-    var_pattern = re.compile(r"\{\{\s*([^}]+?)\s*\}\}")
 
     def collect_unresolved(text: str | None) -> None:
         if not text:
             return
-        for match in var_pattern.finditer(text):
-            var_name = match.group(1)
-            if var_name not in all_variables:
-                unresolved.append(var_name)
+        # Delegate to the same resolver the `test` runner uses so validation and
+        # execution agree: response-chaining references ({{name.response.*}}) are
+        # resolved at runtime and must not be reported as unresolved here, and
+        # os.environ is honored as a resolution source.
+        unresolved.extend(find_unresolved_variables(text, all_variables))
 
     for request in request_file.requests:
         collect_unresolved(request.url)
@@ -266,6 +310,7 @@ def validate(
 
 @app.command(name="test")
 def test_cmd(
+    ctx: typer.Context,
     file: Path = typer.Argument(
         ...,
         help="Path to a .http file or directory collection to execute.",
@@ -298,8 +343,12 @@ def test_cmd(
     ),
 ) -> None:
     """Run one .http file or every .http file in a directory collection."""
+    config = _load_config_or_exit(file)
+    resolved_timeout = _resolve_timeout(ctx, timeout, config)
+    resolved_env = _resolve_env(ctx, env_name, config)
+
     try:
-        results, file_count = run_test_target(file, env_name=env_name, timeout=timeout)
+        results, file_count = run_test_target(file, env_name=resolved_env, timeout=resolved_timeout)
     except ValueError as exc:
         print_error(str(exc))
         raise typer.Exit(code=1)

@@ -11,7 +11,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 
 from probeflow.client import Response
-from probeflow.models import ParseError, Request
+from probeflow.models import Request
 
 _force_no_color = False
 
@@ -109,39 +109,3 @@ def _human_size(size_bytes: int) -> str:
 def print_error(message: str, console: Console | None = None) -> None:
     c = console or make_console(stderr=True)
     c.print(f"[bold red]Error:[/] {message}")
-
-
-def print_validation_error(
-    error: ParseError,
-    filename: str,
-    console: Console | None = None,
-) -> None:
-    c = console or make_console(stderr=True)
-    c.print(f"[bold red]Validation Error in {filename}:[/] {error}")
-
-
-def print_parse_errors(
-    errors: list[tuple[int, str]],
-    filename: str,
-    console: Console | None = None,
-) -> None:
-    c = console or make_console(stderr=True)
-    c.print(f"[bold red]Parse Errors in {filename}:[/]")
-    for line, msg in errors:
-        c.print(f"  Line {line}: {msg}")
-
-
-def print_no_env_warning(filename: str, console: Console | None = None) -> None:
-    c = console or make_console()
-    c.print(
-        f"[yellow]Warning:[/] No .env file found for '{filename}'. Variables may be unresolved.",
-    )
-
-
-def print_unresolved_variables(
-    variables: list[str],
-    console: Console | None = None,
-) -> None:
-    c = console or make_console(stderr=True)
-    for var in variables:
-        c.print(f"  [yellow]{{{{{var}}}}}[/]")

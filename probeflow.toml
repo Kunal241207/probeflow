@@ -1,0 +1,21 @@
+# probeflow repo-wide defaults.
+#
+# Values here apply to every `probeflow run` / `probeflow test` invocation whose
+# target file (or collection directory) lives at or below this directory. An
+# explicit command-line flag always overrides the matching value below; when a
+# key is absent the built-in default is used.
+#
+# Precedence (highest to lowest):
+#   1. explicit --timeout / --env on the command line
+#   2. the value in this file
+#   3. the built-in default (timeout 30s; env unset, so a file's own
+#      `### @env` directive still applies)
+
+[probeflow]
+# Request timeout in seconds (must be >= 1). 30 matches the built-in default,
+# so this line documents the setting without changing current behavior.
+timeout = 30
+
+# Default environment name, used when neither --env nor a file's `### @env`
+# directive is given. Uncomment and set to a real environment to enable.
+# env = "dev"

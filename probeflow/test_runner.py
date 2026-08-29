@@ -79,7 +79,6 @@ def run_test_suite(
     base_dir: Path | None = None,
 ) -> list[RequestTestResult]:
     """Run requests in declaration order and evaluate their assertions."""
-    # Check for duplicate request names
     seen_names: set[str] = set()
     for request in requests:
         if request.name:
@@ -128,7 +127,7 @@ def run_test_suite(
             resolved = resolve_request(request, variables, responses)
             result.url = resolved.url
 
-            # Check for unresolved variables in the resolved request
+            # unresolved variables are a hard failure in test mode
             unresolved: list[str] = []
             unresolved.extend(find_unresolved_variables(resolved.url, variables, responses))
             for header in resolved.headers:
