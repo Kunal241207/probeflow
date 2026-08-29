@@ -140,11 +140,8 @@ class TestMalformedFiles:
             parse_file(fixture_path)
 
         error = exc_info.value
-        # Must have line number
         assert error.line is not None, f"ParseError for {fixture_name} is missing line number"
-        # Must have column number
         assert error.column is not None, f"ParseError for {fixture_name} is missing column number"
-        # Must have a human-readable message (not a bare traceback)
         assert error.raw_message, f"ParseError for {fixture_name} has no message"
 
     def test_malformed_method_error_content(self):
@@ -162,9 +159,7 @@ class TestLenientParsing:
     def test_lenient_parses_without_crash(self, fixture_name):
         """These files may have issues but should not crash the parser."""
         fixture_path = FIXTURES_DIR / fixture_name
-        # Should not raise — the parser is lenient on these edge cases
         result = parse_file(fixture_path)
-        # Should still return a valid RequestFile
         assert result is not None
         assert result.filename == fixture_name
 
@@ -186,13 +181,10 @@ class TestRoundTrip:
         if not original.requests:
             pytest.skip(f"No requests in {fixture_name}")
 
-        # Format the parsed result back to .http text
         formatted_text = format_file(original)
 
-        # Re-parse the formatted text
         reparsed = parse_string(formatted_text, filename=fixture_name)
 
-        # Compare semantics (not spans, not exact text)
         assert len(reparsed.requests) == len(original.requests), (
             f"Round-trip changed request count: {len(original.requests)} → {len(reparsed.requests)}"
         )
@@ -217,7 +209,6 @@ class TestRoundTrip:
                 f"Request {i}: name changed from {orig_req.name} to {re_req.name}"
             )
 
-            # Compare headers by name+value (ignoring span)
             orig_headers = [(h.name, h.value) for h in orig_req.headers]
             re_headers = [(h.name, h.value) for h in re_req.headers]
             assert orig_headers == re_headers, (
@@ -226,7 +217,6 @@ class TestRoundTrip:
                 f"  Reparsed: {re_headers}"
             )
 
-            # Compare body content
             if orig_req.body:
                 assert re_req.body is not None, f"Request {i}: body lost in round-trip"
                 assert orig_req.body.content.strip() == re_req.body.content.strip(), (
@@ -235,14 +225,12 @@ class TestRoundTrip:
             else:
                 assert re_req.body is None, f"Request {i}: body appeared in round-trip"
 
-            # Compare assertions
             if orig_req.assertions:
                 assert re_req.assertions is not None, f"Request {i}: assertions lost in round-trip"
                 assert len(orig_req.assertions.assertions) == len(re_req.assertions.assertions), (
                     f"Request {i}: assertion count changed"
                 )
 
-            # Compare hooks
             if orig_req.before_hook:
                 assert re_req.before_hook is not None, (
                     f"Request {i}: before_hook lost in round-trip"

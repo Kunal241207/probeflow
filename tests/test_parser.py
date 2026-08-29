@@ -454,3 +454,78 @@ class TestParserEdgeCases:
         assert req.assertions is not None
         assert len(req.assertions.assertions) == 1
         assert req.after_hook.function_name == "cleanup"
+
+
+class TestUnrecognizedDirectives:
+    """`### @word` names with no meaning in the spec are skipped like comments.
+
+    Regression: an unrecognized directive used to break out of the block-header
+    loop, which then abandoned the whole block and silently dropped an
+    already-parsed @name -- breaking response chaining with no error. See
+    docs/spec.md §9.1, which reserves this syntax without assigning it meaning.
+    """
+
+    def test_unrecognized_directive_preserves_preceding_name(self):
+        content = textwrap.dedent("""\
+            ### @name = getThing
+            ### @base_url = https://api.example.com
+            GET {{base_url}}/things
+        """)
+        result = parse_string(content)
+        assert len(result.requests) == 1
+        assert result.requests[0].name == "getThing"
+
+    def test_unrecognized_directive_declares_no_variable(self):
+        content = textwrap.dedent("""\
+            ### @base_url = https://api.example.com
+            GET {{base_url}}/things
+        """)
+        req = parse_string(content).requests[0]
+        assert req.url == "{{base_url}}/things"
+        assert req.environment_variables == {}
+
+    def test_name_survives_regardless_of_directive_order(self):
+        before = textwrap.dedent("""\
+            ### @name = getThing
+            ### @unknown = x
+            GET https://a.com
+        """)
+        after = textwrap.dedent("""\
+            ### @unknown = x
+            ### @name = getThing
+            GET https://a.com
+        """)
+        assert parse_string(before).requests[0].name == "getThing"
+        assert parse_string(after).requests[0].name == "getThing"
+
+    def test_unrecognized_directive_does_not_split_the_request(self):
+        content = textwrap.dedent("""\
+            ### @name = createThing
+            ### @retry = 3
+            POST https://api.example.com/things
+            Content-Type: application/json
+
+            {"name": "x"}
+        """)
+        result = parse_string(content)
+        assert len(result.requests) == 1
+        req = result.requests[0]
+        assert req.name == "createThing"
+        assert req.method == HTTPMethod.POST
+        assert req.body.content == '{"name": "x"}'
+        assert len(req.headers) == 1
+
+    def test_known_directives_still_delimit_blocks(self):
+        content = textwrap.dedent("""\
+            ### @name = first
+            GET https://a.com
+
+            ### @assert
+            # status == 200
+
+            ### @name = second
+            GET https://b.com
+        """)
+        result = parse_string(content)
+        assert [r.name for r in result.requests] == ["first", "second"]
+        assert len(result.requests[0].assertions.assertions) == 1

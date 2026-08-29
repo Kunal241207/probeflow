@@ -73,6 +73,13 @@ _DIRECTIVE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Every directive the parser assigns meaning to. A `### @word` outside this set
+# is reserved-but-unassigned syntax (docs/spec.md §9.1) and is skipped like a
+# comment rather than ending a request block.
+_KNOWN_DIRECTIVES = frozenset(
+    {"name", "env", "assert", "before", "after", "oauth2", "form", "file"}
+)
+
 _COMMENT_HASH_RE = re.compile(r"^(\s*)#(?!##)\s?(.*?)$")
 _COMMENT_SLASH_RE = re.compile(r"^(\s*)//(.*?)$")
 _BLANK_RE = re.compile(r"^\s*$")
@@ -407,8 +414,11 @@ class _Parser:
                 elif d_name == "env":
                     self._env_name = d_value
                     self._advance()
-                else:
+                elif d_name in _KNOWN_DIRECTIVES:
                     break
+                else:
+                    # Skip: breaking would discard an already-parsed @name.
+                    self._advance()
             elif tok.type in (TokenType.COMMENT, TokenType.BLANK, TokenType.SEPARATOR):
                 self._advance()
             elif tok.type == TokenType.REQUEST_LINE:

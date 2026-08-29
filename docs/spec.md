@@ -453,12 +453,23 @@ When resolving a `{{name}}` reference:
 
 1. **Chaining references**: If `name` matches `<request_name>.response.*`, resolve
    from the named request's captured response.
-2. **Inline variables**: `### @key = value` directives within the same request block.
-3. **Environment file**: Variables from `.env.<name>` or `.env` file, searched
+2. **Environment file**: Variables from `.env.<name>` or `.env` file, searched
    from the `.http` file's directory upward through parent directories.
-4. **System environment**: `os.environ` lookup.
-5. **Unresolved**: Left as-is (`{{name}}`) — produces a warning in `run` mode,
+3. **System environment**: `os.environ` lookup.
+4. **Unresolved**: Left as-is (`{{name}}`) — produces a warning in `run` mode,
    but is an error in `test` mode.
+
+### 9.1 Reserved: inline variables
+
+The `### @key = value` form is **reserved for future use as an inline variable
+declaration and is not currently supported.** A `### @word` line whose name is
+not one of the directives defined in this spec (`@name`, `@env`, `@assert`,
+`@before`, `@after`, `@oauth2`, `@form`, `@file`) is parsed and skipped like a
+comment; it declares nothing. A `{{key}}` reference relying on it stays
+unresolved, which is a warning in `run` mode and an error in `test` mode.
+
+Define variables in `.env` / `.env.<name>` files or the system environment
+instead.
 
 ---
 

@@ -11,14 +11,21 @@ checks explicit response assertions, and fails CI when the contract breaks.
 ## Installation
 
 ```bash
-# From source (recommended for development)
-pip install -e ".[dev]"
-
-# Or install from PyPI
 pip install probeflow
 ```
 
 After installation the `probeflow` command is available in your PATH.
+
+### For development
+
+To work on probeflow itself, install from a clone in editable mode with the dev
+dependencies (test suite, linter):
+
+```bash
+git clone https://github.com/Kunal241207/probeflow.git
+cd probeflow
+pip install -e ".[dev]"
+```
 
 ## Quick Start
 
@@ -127,7 +134,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev]"
+      - run: pip install probeflow
       - name: Run API contract tests
         run: probeflow test tests/api.http --junit-xml api-results.xml
 ```
