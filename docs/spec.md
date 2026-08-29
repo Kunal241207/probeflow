@@ -548,6 +548,59 @@ output (for example, `probeflow 0.1.0 (spec 1.0)`).
 
 ---
 
+## 15. Repository Configuration (`probeflow.toml`)
+
+`probeflow.toml` is an **optional** file that supplies repository-wide defaults
+for command-line options. It is not part of the `.http` grammar — it configures
+the `probeflow` tool rather than any individual request file.
+
+### 15.1 Discovery
+
+When `probeflow run` or `probeflow test` executes, it looks for a file named
+`probeflow.toml` starting in the directory of the target `.http` file (or, for a
+directory collection, the collection directory itself) and walking upward through
+parent directories to the filesystem root. The **nearest** file found is used; if
+none is found, the built-in defaults apply. This is the same upward-search
+strategy used for `.env` files (§9), so a config placed at the repository root
+covers every file beneath it.
+
+### 15.2 Format
+
+The canonical form is a `[probeflow]` table. Bare top-level keys (no table
+header) are also accepted.
+
+```toml
+[probeflow]
+timeout = 60      # request timeout in seconds; must be a number >= 1
+env = "dev"       # default environment name (alias: default_env)
+```
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `timeout` | number (int or float), `>= 1` | Default `--timeout`, in seconds. |
+| `env` | non-empty string | Default `--env`. `default_env` is accepted as an alias; if both are present, `env` wins. |
+
+Unknown keys are ignored. A file that exists but is malformed (invalid TOML, a
+wrong value type, or `timeout < 1`) is a hard error: the command reports it and
+exits with status 1 rather than silently falling back.
+
+### 15.3 Precedence
+
+For each option, the value is chosen highest-to-lowest:
+
+1. An explicit command-line flag (`--timeout` / `--env`) — always wins when given.
+2. The value in `probeflow.toml`.
+3. The built-in default.
+
+The built-in default for `--timeout` is 30 seconds. For the environment, when no
+flag and no `probeflow.toml` `env` are given, selection falls through to the
+file's own `### @env` directive (§6.2), and then to no environment. A
+`probeflow.toml` `env` therefore behaves like a default value for the `--env`
+flag: because an explicit `--env` overrides a file's `### @env`, a configured
+`env` does too.
+
+---
+
 ## Appendix A: Complete Example File
 
 ```http

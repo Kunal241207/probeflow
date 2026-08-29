@@ -122,11 +122,7 @@ def _status_text(code: int) -> str:
 
 
 def _try_parse_json(body: str, content_type: str | None) -> tuple[Any, bool]:
-    """Parse JSON body if content type indicates JSON.
-
-    Returns (parsed_value, success) where success is True when the content type
-    was JSON and parsing succeeded (even if the result is None/JSON null).
-    """
+    """Parse a JSON body when the content type is JSON; return (value, ok)."""
     if content_type and "json" in content_type.lower():
         import json
 
@@ -135,23 +131,6 @@ def _try_parse_json(body: str, content_type: str | None) -> tuple[Any, bool]:
         except (json.JSONDecodeError, ValueError):
             pass
     return None, False
-
-
-def _build_multipart_files(
-    request: Request,
-    base_dir: Path | None,
-) -> list[tuple[str, Any]]:
-    """Build the files list for httpx multipart encoding."""
-    files: list[tuple[str, Any]] = []
-    for part in request.multipart:
-        if part.file_path is not None:
-            resolved = (Path(base_dir) / part.file_path) if base_dir else Path(part.file_path)
-            data = resolved.read_bytes()
-            content_type = part.content_type or "application/octet-stream"
-            files.append((part.name, (part.file_path, data, content_type)))
-        else:
-            files.append((part.name, (None, part.value or "", part.content_type or "text/plain")))
-    return files
 
 
 def execute_request(

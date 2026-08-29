@@ -97,7 +97,6 @@ def find_env_file(
     """
     current = directory.resolve()
 
-    # Pass 1: walk all ancestors looking for the named env file
     if env_name:
         search_dir = current
         while True:
@@ -109,7 +108,7 @@ def find_env_file(
                 break
             search_dir = parent
 
-    # Pass 2: walk all ancestors looking for default files
+    # named files exhausted; fall back to defaults, nearest ancestor first
     search_dir = current
     while True:
         for default in _DEFAULT_ENV_FILES:
@@ -163,7 +162,6 @@ def _apply_auth(
     resolved_headers: list[Header],
 ) -> list[Header]:
     """Apply auth config to the resolved headers list, returning a new list."""
-    # Check for explicit Authorization header conflict
     has_auth_header = any(h.name.lower() == "authorization" for h in resolved_headers)
     if has_auth_header:
         raise VariableResolutionError(

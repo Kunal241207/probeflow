@@ -4,33 +4,41 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  workflow_dispatch:
+
+# Least privilege: CI only needs to read the checkout.
+permissions:
+  contents: read
+
+# Newer pushes to a branch cancel in-flight runs for the same ref.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NO_COLOR: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
   lint:
-    name: Lint
+    name: Lint & format
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-    env:
-      NO_COLOR: "1"
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
       - run: python -m pip install -e ".[dev]"
-      - name: ruff check
-        run: python -m ruff check .
-      - name: ruff format check
-        run: python -m ruff format --check .
+      - run: python -m ruff check .
+      - run: python -m ruff format --check .
 
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -43,22 +51,25 @@ jobs:
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
       - run: python -m pip install -e ".[dev]"
-      - name: Run test suite
-        run: python -m pytest
+      - run: python -m pytest
 
+  # Runs the bundled examples against a live third-party API (httpbin.org).
+  # Non-blocking: a network hiccup upstream must not fail the whole pipeline.
   examples:
-    name: Example smoke tests
+    name: Example smoke tests (live network)
     runs-on: ubuntu-24.04
-    needs: [test]
+    needs: [lint, test]
+    timeout-minutes: 10
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
       - run: python -m pip install -e ".[dev]"
-      - name: Run example API tests
+      - name: Run example .http files against live APIs
         run: |
           probeflow test examples/simple.http
           probeflow test examples/requests.http --env dev

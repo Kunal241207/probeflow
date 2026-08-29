@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from enum import Enum, auto
 from pathlib import Path
@@ -171,7 +172,19 @@ def _parse_value_literal(text: str) -> tuple[str, object]:
     if text == "null":
         return ("null", None)
 
+    if text.startswith("{") and text.endswith("}"):
+        # parse as JSON so comparisons run dict-vs-dict, not dict-vs-string
+        try:
+            return ("object", json.loads(text))
+        except (json.JSONDecodeError, ValueError):
+            return ("unknown", text)
+
     if text.startswith("[") and text.endswith("]"):
+        # prefer strict JSON; fall back to a lenient comma-split
+        try:
+            return ("list", json.loads(text))
+        except (json.JSONDecodeError, ValueError):
+            pass
         inner = text[1:-1].strip()
         if not inner:
             return ("list", [])
@@ -193,10 +206,7 @@ def _parse_value_literal(text: str) -> tuple[str, object]:
 
 
 def _parse_assertion_expr(text: str, lineno: int, col: int, filename: str) -> Assertion:
-    """Parse a single assertion expression line.
-
-    Returns an Assertion model or raises ParseError.
-    """
+    """Parse one assertion expression into an Assertion (or raise ParseError)."""
     text = text.strip()
     span = SourceSpan(start_line=lineno, start_col=col, end_line=lineno, end_col=col + len(text))
 
@@ -293,11 +303,7 @@ def _parse_assertion_expr(text: str, lineno: int, col: int, filename: str) -> As
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Parser — grammar-driven AST builder
-# ═══════════════════════════════════════════════════════════════════════════
-
-
+# Parser: build the AST from the token stream
 class _Parser:
     def __init__(self, tokens: list[Token], filename: str) -> None:
         self._tokens = tokens
@@ -319,7 +325,7 @@ class _Parser:
     def _at_end(self) -> bool:
         return self._pos >= len(self._tokens)
 
-    # -- Grammar productions ------------------------------------------------
+    # Grammar productions
 
     def parse(self) -> RequestFile:
         while not self._at_end():
@@ -769,11 +775,7 @@ class _Parser:
         )
 
 
-# ═══════════════════════════════════════════════════════════════════════════
 # Public API
-# ═══════════════════════════════════════════════════════════════════════════
-
-
 def parse_file(filepath: str | Path) -> RequestFile:
     path = Path(filepath)
     if not path.exists():
@@ -787,11 +789,7 @@ def parse_string(content: str, filename: str = "<input>") -> RequestFile:
     return _Parser(tokens, filename).parse()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Formatter — round-trip .http output
-# ═══════════════════════════════════════════════════════════════════════════
-
-
+# Formatter: AST back to .http text
 def format_request(request: Request) -> str:
     """Format a Request object back into .http file syntax."""
     lines: list[str] = []

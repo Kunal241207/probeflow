@@ -3,6 +3,7 @@ import pytest
 from probeflow.client import Response
 from probeflow.evaluator import AssertionFailure, _extract_jsonpath, evaluate_assertion
 from probeflow.models import Assertion, AssertionOperator, AssertionTarget
+from probeflow.parser import parse_string
 
 
 def make_response(status_code=200, json_data=None, headers=None, text="", json_parsed=None):
@@ -709,3 +710,62 @@ class TestRootBodyNull:
             10,
         )
         assert result is None
+
+
+class TestObjectAndArrayLiteralComparison:
+    """End-to-end parse->evaluate for object/array literals in assertion values.
+
+    Regression for the bug where `body.$ == {..}` was parsed into a raw *string*
+    expected value and then compared against a parsed *dict*, so the assertion
+    could never hold. These tests go through parse_string (i.e. the real
+    _parse_value_literal path) rather than constructing Assertion directly.
+    """
+
+    def _assertion(self, line: str) -> Assertion:
+        rf = parse_string(f"GET https://api.example.com/x\n\n### @assert\n# {line}\n")
+        return rf.requests[0].assertions.assertions[0]
+
+    def test_root_body_eq_object_literal_parses_to_dict(self):
+        a = self._assertion('body.$ == {"name": "Alice", "age": 30}')
+        assert isinstance(a.expected, dict)
+        assert a.expected == {"name": "Alice", "age": 30}
+
+    def test_root_body_eq_object_literal_passes(self):
+        a = self._assertion('body.$ == {"name": "Alice", "age": 30}')
+        evaluate_assertion(a, make_response(json_data={"name": "Alice", "age": 30}), 10)
+
+    def test_root_body_eq_object_literal_fails_on_mismatch(self):
+        a = self._assertion('body.$ == {"name": "Alice"}')
+        with pytest.raises(AssertionFailure):
+            evaluate_assertion(a, make_response(json_data={"name": "Bob"}), 10)
+
+    def test_body_path_eq_nested_object_literal(self):
+        a = self._assertion('body.$.user == {"id": 1, "roles": ["admin", "user"]}')
+        assert a.expected == {"id": 1, "roles": ["admin", "user"]}
+        evaluate_assertion(
+            a,
+            make_response(json_data={"user": {"id": 1, "roles": ["admin", "user"]}}),
+            10,
+        )
+
+    def test_root_body_eq_array_of_objects(self):
+        # The old lenient comma-split broke on commas inside nested objects;
+        # strict JSON parsing handles them.
+        a = self._assertion('body.$ == [{"id": 1, "n": "a"}, {"id": 2, "n": "b"}]')
+        assert a.expected == [{"id": 1, "n": "a"}, {"id": 2, "n": "b"}]
+        evaluate_assertion(
+            a,
+            make_response(json_data=[{"id": 1, "n": "a"}, {"id": 2, "n": "b"}]),
+            10,
+        )
+
+    def test_status_in_integer_list_still_works(self):
+        # Guard: `status in [..]` array literals are unchanged by the JSON path.
+        a = self._assertion("status in [200, 201, 204]")
+        assert a.expected == [200, 201, 204]
+        evaluate_assertion(a, make_response(201), 10)
+
+    def test_malformed_object_literal_falls_back_to_string(self):
+        # Not valid JSON -> preserved as a raw token rather than crashing the parser.
+        a = self._assertion("body.$.raw == {not json}")
+        assert a.expected == "{not json}"

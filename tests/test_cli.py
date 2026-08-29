@@ -371,6 +371,10 @@ class TestValidateCommand:
             assert f"{{{{{var}}}}}" in output
 
     def test_validate_unresolved_chaining_references(self, tmp_path):
+        # Response-chaining references ({{name.response.*}}) resolve at runtime
+        # from a preceding named request (spec §8/§9). They are valid, not
+        # "unresolved", and must NOT be flagged by `validate` -- matching the
+        # `test` runner, which skips them via find_unresolved_variables.
         http_file = tmp_path / "test.http"
         http_file.write_text(
             "GET https://api.example.com/users\n"
@@ -381,12 +385,15 @@ class TestValidateCommand:
         result = runner.invoke(app, ["validate", str(http_file)])
         assert result.exit_code == 0
         output = strip_ansi(result.stdout)
+        assert "valid" in output
+        # None of the chaining references should be reported as unresolved.
+        assert "Unresolved variables" not in output
         for var in (
             "login.response.body.$.token",
             "login.response.headers.X-Request-Id",
             "login.response.status",
         ):
-            assert f"{{{{{var}}}}}" in output
+            assert f"{{{{{var}}}}}" not in output
 
     def test_validate_nonexistent_file(self):
         result = runner.invoke(app, ["validate", "/tmp/nonexistent.http"])
